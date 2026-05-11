@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { eq, desc } from 'drizzle-orm'
+import { eq, desc, inArray } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { db } from '../db/client'
 import {
@@ -24,20 +24,35 @@ export function registerMortgageHandlers(): void {
   ipcMain.handle('mortgages:list', async (_e, raw: unknown) => {
     ListMortgagesRequest.parse(raw ?? {})
     const allMortgages = await db.select().from(mortgages)
-    return Promise.all(
-      allMortgages.map(async (m) => {
-        const extraPayments = await db
-          .select()
-          .from(mortgage_extra_payments)
-          .where(eq(mortgage_extra_payments.mortgage_id, m.id))
-          .orderBy(mortgage_extra_payments.applied_date)
-        const property = m.property_id
-          ? (await db.select().from(properties).where(eq(properties.id, m.property_id)).get()) ??
-            null
-          : null
-        return { ...m, extra_payments: extraPayments, property }
-      }),
-    )
+    if (allMortgages.length === 0) return []
+
+    const mortgageIds = allMortgages.map((m) => m.id)
+    const propertyIds = allMortgages.map((m) => m.property_id).filter(Boolean) as string[]
+
+    const allExtraPayments = await db
+      .select()
+      .from(mortgage_extra_payments)
+      .where(inArray(mortgage_extra_payments.mortgage_id, mortgageIds))
+      .orderBy(mortgage_extra_payments.applied_date)
+
+    const allProperties =
+      propertyIds.length > 0
+        ? await db.select().from(properties).where(inArray(properties.id, propertyIds))
+        : []
+
+    const extraByMortgage = new Map<string, typeof mortgage_extra_payments.$inferSelect[]>()
+    for (const ep of allExtraPayments) {
+      const arr = extraByMortgage.get(ep.mortgage_id) ?? []
+      arr.push(ep)
+      extraByMortgage.set(ep.mortgage_id, arr)
+    }
+    const propertyMap = new Map(allProperties.map((p) => [p.id, p]))
+
+    return allMortgages.map((m) => ({
+      ...m,
+      extra_payments: extraByMortgage.get(m.id) ?? [],
+      property: m.property_id ? (propertyMap.get(m.property_id) ?? null) : null,
+    }))
   })
 
   ipcMain.handle('mortgages:create', async (_e, raw: unknown) => {
@@ -87,23 +102,29 @@ export function registerMortgageHandlers(): void {
   ipcMain.handle('properties:list', async (_e, raw: unknown) => {
     ListPropertiesRequest.parse(raw ?? {})
     const allProps = await db.select().from(properties)
-    return Promise.all(
-      allProps.map(async (p) => {
-        const snap = await db
-          .select()
-          .from(home_value_snapshots)
-          .where(eq(home_value_snapshots.property_id, p.id))
-          .orderBy(desc(home_value_snapshots.recorded_at))
-          .limit(1)
-          .get()
-        return {
-          ...p,
-          latest_value_cents: snap?.value_cents ?? null,
-          latest_value_at: snap?.recorded_at ?? null,
-          latest_value_source: snap?.source ?? null,
-        }
-      }),
-    )
+    if (allProps.length === 0) return []
+
+    const propIds = allProps.map((p) => p.id)
+    const allSnaps = await db
+      .select()
+      .from(home_value_snapshots)
+      .where(inArray(home_value_snapshots.property_id, propIds))
+      .orderBy(desc(home_value_snapshots.recorded_at))
+
+    const latestSnapByProp = new Map<string, typeof home_value_snapshots.$inferSelect>()
+    for (const snap of allSnaps) {
+      if (!latestSnapByProp.has(snap.property_id)) latestSnapByProp.set(snap.property_id, snap)
+    }
+
+    return allProps.map((p) => {
+      const snap = latestSnapByProp.get(p.id) ?? null
+      return {
+        ...p,
+        latest_value_cents: snap?.value_cents ?? null,
+        latest_value_at: snap?.recorded_at ?? null,
+        latest_value_source: snap?.source ?? null,
+      }
+    })
   })
 
   ipcMain.handle('properties:create', async (_e, raw: unknown) => {

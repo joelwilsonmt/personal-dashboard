@@ -83,6 +83,8 @@ function AccountRow({ account, onClick }: { account: Account; onClick: () => voi
 function AccountDrawer({ account, onClose }: { account: Account; onClose: () => void }) {
   const historyQ = useAccountHistory(account.id)
   const updateAccount = useUpdateAccount()
+  const [editing, setEditing] = useState(false)
+  const [editForm, setEditForm] = useState({ name: account.name, institution: account.institution })
 
   function handleArchive() {
     updateAccount.mutate(
@@ -96,63 +98,114 @@ function AccountDrawer({ account, onClose }: { account: Account; onClose: () => 
     )
   }
 
+  function handleEdit(e: React.FormEvent) {
+    e.preventDefault()
+    updateAccount.mutate(
+      { id: account.id, name: editForm.name, institution: editForm.institution },
+      {
+        onSuccess: () => {
+          toast.success('Account updated')
+          setEditing(false)
+        },
+        onError: (err) => toast.error(err.message),
+      },
+    )
+  }
+
   return (
     <Drawer open onOpenChange={(open) => !open && onClose()}>
       <DrawerContent className="max-h-[85vh]">
         <DrawerHeader>
-          <DrawerTitle>{account.name}</DrawerTitle>
-          <p className="text-sm text-muted-foreground">{account.institution || account.type}</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <DrawerTitle>{account.name}</DrawerTitle>
+              <p className="text-sm text-muted-foreground">{account.institution || account.type}</p>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => setEditing((v) => !v)}>
+              {editing ? 'Cancel' : 'Edit'}
+            </Button>
+          </div>
         </DrawerHeader>
         <div className="px-4 pb-6 space-y-4 overflow-auto">
-          <div className="flex gap-3">
-            <div className="flex-1 rounded-lg bg-secondary p-3">
-              <p className="text-xs text-muted-foreground mb-1">Current Balance</p>
-              <p className="text-xl font-bold">
-                {account.latest_balance_cents != null
-                  ? formatCurrency(account.latest_balance_cents)
-                  : '—'}
-              </p>
-            </div>
-            <div className="flex-1 rounded-lg bg-secondary p-3">
-              <p className="text-xs text-muted-foreground mb-1">Last Updated</p>
-              <p className="text-sm font-medium">{formatRelativeTime(account.latest_balance_at)}</p>
-            </div>
-          </div>
-
-          <div>
-            <h3 className="text-sm font-medium mb-2">Balance History</h3>
-            {historyQ.isLoading ? (
-              <div className="space-y-2">
-                {[1, 2, 3].map((i) => <Skeleton key={i} className="h-10 w-full" />)}
+          {editing ? (
+            <form onSubmit={handleEdit} className="space-y-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="editName">Account name</Label>
+                <Input
+                  id="editName"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+                  required
+                />
               </div>
-            ) : !historyQ.data || historyQ.data.snapshots.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No history yet</p>
-            ) : (
-              <ul className="divide-y divide-border rounded-lg border border-border overflow-hidden">
-                {historyQ.data.snapshots.map((s) => (
-                  <li key={s.id} className="flex items-center justify-between px-3 py-2.5">
-                    <p className="text-xs text-muted-foreground">{formatRelativeTime(s.recorded_at)}</p>
-                    <div className="flex items-center gap-1.5">
-                      <p className="text-sm font-medium tabular-nums">
-                        {formatCurrency(s.balance_cents)}
-                      </p>
-                      <Badge variant="outline" className="text-xs capitalize">{s.source}</Badge>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="editInstitution">Institution</Label>
+                <Input
+                  id="editInstitution"
+                  value={editForm.institution}
+                  onChange={(e) => setEditForm((f) => ({ ...f, institution: e.target.value }))}
+                  placeholder="e.g. Chase Bank"
+                />
+              </div>
+              <Button type="submit" size="sm" disabled={updateAccount.isPending || !editForm.name}>
+                Save changes
+              </Button>
+            </form>
+          ) : (
+            <>
+              <div className="flex gap-3">
+                <div className="flex-1 rounded-lg bg-secondary p-3">
+                  <p className="text-xs text-muted-foreground mb-1">Current Balance</p>
+                  <p className="text-xl font-bold">
+                    {account.latest_balance_cents != null
+                      ? formatCurrency(account.latest_balance_cents)
+                      : '—'}
+                  </p>
+                </div>
+                <div className="flex-1 rounded-lg bg-secondary p-3">
+                  <p className="text-xs text-muted-foreground mb-1">Last Updated</p>
+                  <p className="text-sm font-medium">{formatRelativeTime(account.latest_balance_at)}</p>
+                </div>
+              </div>
 
-          <Separator />
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={handleArchive}
-            disabled={updateAccount.isPending}
-          >
-            Archive account
-          </Button>
+              <div>
+                <h3 className="text-sm font-medium mb-2">Balance History</h3>
+                {historyQ.isLoading ? (
+                  <div className="space-y-2">
+                    {[1, 2, 3].map((i) => <Skeleton key={i} className="h-10 w-full" />)}
+                  </div>
+                ) : historyQ.isError ? (
+                  <p className="text-sm text-destructive">Failed to load history</p>
+                ) : !historyQ.data || historyQ.data.snapshots.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No history yet</p>
+                ) : (
+                  <ul className="divide-y divide-border rounded-lg border border-border overflow-hidden">
+                    {historyQ.data.snapshots.map((s) => (
+                      <li key={s.id} className="flex items-center justify-between px-3 py-2.5">
+                        <p className="text-xs text-muted-foreground">{formatRelativeTime(s.recorded_at)}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-sm font-medium tabular-nums">
+                            {formatCurrency(s.balance_cents)}
+                          </p>
+                          <Badge variant="outline" className="text-xs capitalize">{s.source}</Badge>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <Separator />
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleArchive}
+                disabled={updateAccount.isPending}
+              >
+                Archive account
+              </Button>
+            </>
+          )}
         </div>
       </DrawerContent>
     </Drawer>
@@ -306,23 +359,26 @@ function UpdateBalancesDialog({
 }) {
   const updateBalances = useUpdateBalances()
   const manualAccounts = accounts.filter((a) => !a.plaid_account_id)
-  const [values, setValues] = useState<Record<string, string>>(
-    Object.fromEntries(
-      manualAccounts.map((a) => [
-        a.id,
-        a.latest_balance_cents != null ? String(centsToDisplay(a.latest_balance_cents)) : '',
-      ]),
-    ),
+  const originalValues = Object.fromEntries(
+    manualAccounts.map((a) => [
+      a.id,
+      a.latest_balance_cents != null ? String(centsToDisplay(a.latest_balance_cents)) : '',
+    ]),
   )
+  const [values, setValues] = useState<Record<string, string>>(originalValues)
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const updates = manualAccounts
-      .filter((a) => values[a.id] !== '')
+      .filter((a) => values[a.id] !== '' && values[a.id] !== originalValues[a.id])
       .map((a) => ({
         account_id: a.id,
         balance_cents: displayToCents(parseFloat(values[a.id] ?? '0')),
       }))
+    if (updates.length === 0) {
+      onClose()
+      return
+    }
     updateBalances.mutate(
       { updates },
       {
@@ -421,7 +477,7 @@ function NetWorthPage() {
       </div>
 
       {/* Hero + metric cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="md:col-span-1">
           <CardContent className="pt-6">
             {accountsQ.isLoading ? (
@@ -475,16 +531,6 @@ function NetWorthPage() {
             )}
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 text-muted-foreground mb-1">
-              <TrendingUp size={16} />
-              <p className="text-sm font-medium">Savings Rate</p>
-            </div>
-            <p className="text-2xl font-bold tabular-nums text-muted-foreground">—</p>
-            <p className="text-xs text-muted-foreground mt-1">Available with Plaid (Phase 2)</p>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Trend chart */}
@@ -495,6 +541,8 @@ function NetWorthPage() {
         <CardContent>
           {trendQ.isLoading ? (
             <Skeleton className="h-48 w-full" />
+          ) : trendQ.isError ? (
+            <p className="h-48 flex items-center justify-center text-sm text-destructive">Failed to load trend</p>
           ) : (
             <NetWorthTrend data={trendQ.data ?? []} height={192} />
           )}
@@ -516,6 +564,8 @@ function NetWorthPage() {
               <div className="p-4 space-y-3">
                 {[1, 2, 3].map((i) => <Skeleton key={i} className="h-14 w-full" />)}
               </div>
+            ) : accountsQ.isError ? (
+              <p className="p-6 text-sm text-destructive text-center">Failed to load accounts</p>
             ) : assetList.length === 0 ? (
               <div className="p-8 text-center text-sm text-muted-foreground">
                 <p>No asset accounts yet</p>
@@ -553,6 +603,8 @@ function NetWorthPage() {
               <div className="p-4 space-y-3">
                 {[1, 2].map((i) => <Skeleton key={i} className="h-14 w-full" />)}
               </div>
+            ) : accountsQ.isError ? (
+              <p className="p-6 text-sm text-destructive text-center">Failed to load accounts</p>
             ) : liabilityList.length === 0 ? (
               <div className="p-8 text-center text-sm text-muted-foreground">
                 <p>No liability accounts yet</p>

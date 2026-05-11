@@ -1,9 +1,10 @@
 import { ipcMain } from 'electron'
-import { eq, desc, and, sql, inArray } from 'drizzle-orm'
+import { eq, desc, and, gte, sql, inArray } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { db } from '../db/client'
 import { accounts, balance_snapshots } from '@shared/db/schema'
 import {
+  PingRequest,
   ListAccountsRequest,
   CreateAccountRequest,
   UpdateAccountRequest,
@@ -38,7 +39,7 @@ async function getLatestSnapshot(accountId: string) {
 
 export function registerAccountHandlers(): void {
   ipcMain.handle('ping', (_e, raw: unknown) => {
-    ListAccountsRequest.parse(raw ?? {})
+    PingRequest.parse(raw ?? {})
     return { pong: true, ts: Date.now() }
   })
 
@@ -86,16 +87,13 @@ export function registerAccountHandlers(): void {
       updated_at: now,
     })
 
-    // Insert initial snapshot
-    if (data.initial_balance_cents !== 0) {
-      await db.insert(balance_snapshots).values({
-        id: nanoid(),
-        account_id: id,
-        balance_cents: data.initial_balance_cents,
-        source: 'manual',
-        recorded_at: now,
-      })
-    }
+    await db.insert(balance_snapshots).values({
+      id: nanoid(),
+      account_id: id,
+      balance_cents: data.initial_balance_cents,
+      source: 'manual',
+      recorded_at: now,
+    })
 
     const acct = await db.select().from(accounts).where(eq(accounts.id, id)).get()
     if (!acct) throw new Error('Account not found after insert')
@@ -134,6 +132,8 @@ export function registerAccountHandlers(): void {
     const now = new Date()
     let updated = 0
     for (const u of updates) {
+      const latest = await getLatestSnapshot(u.account_id)
+      if (latest?.balance_cents === u.balance_cents) continue
       await db.insert(balance_snapshots).values({
         id: nanoid(),
         account_id: u.account_id,
@@ -151,17 +151,34 @@ export function registerAccountHandlers(): void {
 
     const accts = await db.select({ id: accounts.id, kind: accounts.kind }).from(accounts).where(eq(accounts.is_archived, false))
 
-    const allSnaps = await db.select().from(balance_snapshots).orderBy(desc(balance_snapshots.recorded_at))
+    // Load only snapshots within the lookback window to avoid unbounded memory use
+    const now = new Date()
+    const cutoffDate = new Date(now.getFullYear(), now.getMonth() - months, 1)
+    const windowSnaps = await db
+      .select()
+      .from(balance_snapshots)
+      .where(gte(balance_snapshots.recorded_at, cutoffDate))
+      .orderBy(desc(balance_snapshots.recorded_at))
 
     const snapsByAccount = new Map<string, Array<{ balance_cents: number; recorded_at: Date }>>()
-    for (const s of allSnaps) {
+    const accountsInWindow = new Set<string>()
+    for (const s of windowSnaps) {
+      accountsInWindow.add(s.account_id)
       const arr = snapsByAccount.get(s.account_id) ?? []
       arr.push({ balance_cents: s.balance_cents, recorded_at: s.recorded_at })
       snapsByAccount.set(s.account_id, arr)
     }
 
+    // For accounts with no snapshot in the window, fall back to their latest ever snapshot
+    for (const acct of accts) {
+      if (accountsInWindow.has(acct.id)) continue
+      const snap = await getLatestSnapshot(acct.id)
+      if (snap) {
+        snapsByAccount.set(acct.id, [{ balance_cents: snap.balance_cents, recorded_at: snap.recorded_at }])
+      }
+    }
+
     const results = []
-    const now = new Date()
     for (let i = months - 1; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
       const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999)

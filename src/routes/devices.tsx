@@ -145,10 +145,18 @@ function DeviceCard({ device, onClick, onDelete }: {
 }
 
 function AgentInstallInstructions({ device, port = 53117 }: { device: Device; port?: number }) {
-  const curlCmd = `curl -X POST http://localhost:${port}/agent/report \\
+  const agentScript = `#!/bin/sh
+# Run every 30s via launchd / systemd / Task Scheduler
+CPU=$(top -l 1 -s 0 | awk '/CPU usage/ {print $3}' | tr -d '%')
+RAM=$(vm_stat | awk '/Pages active/ {active=$3} /Pages wired/ {wired=$4} END {print int((active+wired)*4096/1048576)}')
+DISK=$(df / | awk 'NR==2 {printf "%d", $5}' | tr -d '%')
+
+curl -s -X POST http://127.0.0.1:${port}/agent/report \\
   -H "Content-Type: application/json" \\
   -H "X-Agent-Token: ${device.agent_token}" \\
-  -d '{"cpu":12,"ram":68,"disk":41}'`
+  -d "{\\\"cpu\\\":$CPU,\\\"ram\\\":$RAM,\\\"disk\\\":$DISK}"`
+
+  const tokenLine = `Token: ${device.agent_token}`
 
   function copy(text: string) {
     void navigator.clipboard.writeText(text)
@@ -158,23 +166,30 @@ function AgentInstallInstructions({ device, port = 53117 }: { device: Device; po
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
-        Run this on the device to report metrics. Schedule it with launchd / systemd / Task Scheduler every 30s.
+        Run this script on the target device every 30s (launchd / systemd / Task Scheduler). For devices on a different network, replace <code className="font-mono bg-secondary px-1 rounded text-xs">127.0.0.1</code> with your Tailscale IP.
       </p>
       <div className="relative">
         <pre className="text-xs bg-secondary rounded-lg p-3 overflow-x-auto font-mono leading-relaxed">
-          {curlCmd}
+          {agentScript}
         </pre>
         <button
-          onClick={() => copy(curlCmd)}
+          onClick={() => copy(agentScript)}
           className="absolute top-2 right-2 p-1.5 rounded bg-background/80 text-muted-foreground hover:text-foreground transition-colors"
-          aria-label="Copy curl command"
+          aria-label="Copy agent script"
         >
           <Copy size={13} />
         </button>
       </div>
-      <div className="text-xs text-muted-foreground space-y-1">
-        <p>Token: <code className="font-mono bg-secondary px-1 rounded">{device.agent_token}</code></p>
-        <p>For remote devices on a different network, expose the endpoint via Tailscale.</p>
+      <div className="flex items-center gap-2">
+        <p className="text-xs text-muted-foreground">Token:</p>
+        <code className="font-mono bg-secondary px-1.5 py-0.5 rounded text-xs flex-1 truncate">{device.agent_token}</code>
+        <button
+          onClick={() => copy(tokenLine)}
+          className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+          aria-label="Copy token"
+        >
+          <Copy size={12} />
+        </button>
       </div>
     </div>
   )
@@ -282,6 +297,10 @@ function DevicesPage() {
           {[1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-40 w-full" />
           ))}
+        </div>
+      ) : devicesQ.isError ? (
+        <div className="flex flex-col items-center justify-center py-24 space-y-3">
+          <p className="text-sm text-destructive">Failed to load devices</p>
         </div>
       ) : devices.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 space-y-3">

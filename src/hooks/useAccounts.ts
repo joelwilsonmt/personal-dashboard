@@ -12,6 +12,7 @@ export function useAccounts(kind?: 'asset' | 'liability') {
   return useQuery({
     queryKey: accountKeys.list(kind),
     queryFn: () => window.api.accounts.list({ kind }) as Promise<Account[]>,
+    staleTime: 30_000,
   })
 }
 
@@ -20,6 +21,7 @@ export function useAccountHistory(id: string) {
     queryKey: accountKeys.history(id),
     queryFn: () => window.api.accounts.getHistory({ id }),
     enabled: !!id,
+    staleTime: 30_000,
   })
 }
 
@@ -27,6 +29,7 @@ export function useNetWorthTrend(months = 12) {
   return useQuery({
     queryKey: accountKeys.trend(months),
     queryFn: () => window.api.netWorth.trend({ months }),
+    staleTime: 60_000,
   })
 }
 

@@ -11,6 +11,21 @@ import {
 import { log } from '../logger'
 import type { AppStore } from '../store'
 
+const TABLE_COLUMNS: Record<string, ReadonlySet<string>> = {
+  accounts: new Set(['id', 'name', 'kind', 'type', 'institution', 'currency', 'plaid_account_id', 'is_archived', 'created_at', 'updated_at']),
+  balance_snapshots: new Set(['id', 'account_id', 'balance_cents', 'source', 'recorded_at']),
+  transactions: new Set(['id', 'account_id', 'posted_at', 'amount_cents', 'merchant', 'category', 'description', 'plaid_transaction_id', 'source']),
+  mortgages: new Set(['id', 'account_id', 'property_id', 'original_principal_cents', 'interest_rate_bps', 'term_months', 'start_date', 'payment_day_of_month']),
+  mortgage_extra_payments: new Set(['id', 'mortgage_id', 'amount_cents', 'applied_date', 'kind']),
+  properties: new Set(['id', 'address', 'purchase_price_cents', 'purchase_date', 'beds', 'baths', 'sqft', 'year_built', 'zillow_zpid', 'created_at', 'updated_at']),
+  home_value_snapshots: new Set(['id', 'property_id', 'value_cents', 'recorded_at', 'source', 'notes']),
+  monthly_expenses: new Set(['id', 'name', 'amount_cents', 'category', 'due_day', 'is_active']),
+  devices: new Set(['id', 'name', 'kind', 'agent_token', 'last_seen_at', 'last_metrics_json', 'created_at']),
+  sites: new Set(['id', 'name', 'url', 'check_interval_seconds', 'is_active', 'alert_on_down', 'alert_on_slow_ms', 'created_at']),
+  site_checks: new Set(['id', 'site_id', 'checked_at', 'status_code', 'response_ms', 'ok', 'error_message']),
+  alerts: new Set(['id', 'target_kind', 'target_id', 'condition_json', 'last_triggered_at']),
+}
+
 let store: AppStore
 
 export function initSettingsStore(s: AppStore): void {
@@ -105,7 +120,9 @@ export function registerSettingsHandlers(): void {
           const rows = data[table]
           if (!rows?.length) continue
           const firstRow = rows[0] as Record<string, unknown>
-          const keys = Object.keys(firstRow)
+          const allowedCols = TABLE_COLUMNS[table]
+          const keys = Object.keys(firstRow).filter((k) => allowedCols?.has(k))
+          if (keys.length === 0) continue
           const cols = keys.join(', ')
           const placeholders = keys.map(() => '?').join(', ')
           const stmt = sqlite.prepare(`INSERT OR REPLACE INTO ${table} (${cols}) VALUES (${placeholders})`)

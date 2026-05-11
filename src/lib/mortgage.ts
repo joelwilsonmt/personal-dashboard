@@ -38,7 +38,10 @@ export function amortizationSchedule(
 ): AmortizationRow[] {
   const r = annualRatePct === 0 ? 0 : annualRatePct / 100 / 12
   const basePayment = monthlyPayment(principalCents, annualRatePct, termMonths)
-  const extraByMonth = new Map<number, number>(extraPayments.map((ep) => [ep.month, ep.amount]))
+  const extraByMonth = new Map<number, number>()
+  for (const ep of extraPayments) {
+    extraByMonth.set(ep.month, (extraByMonth.get(ep.month) ?? 0) + ep.amount)
+  }
 
   const rows: AmortizationRow[] = []
   let balance = principalCents

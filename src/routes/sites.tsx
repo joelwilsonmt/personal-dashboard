@@ -292,7 +292,9 @@ function StatusTimeline({ checks }: { checks: SiteCheck[] }) {
   const last24h = checks.filter(
     (c) => new Date(c.checked_at).getTime() > Date.now() - 24 * 3600 * 1000,
   )
-  if (last24h.length === 0) return null
+  if (last24h.length === 0) {
+    return <p className="text-xs text-muted-foreground">No checks in the last 24 hours</p>
+  }
   return (
     <div className="flex gap-px h-6 rounded overflow-hidden">
       {last24h
@@ -338,6 +340,8 @@ function SiteDrawer({ site, onClose }: { site: Site; onClose: () => void }) {
               <Skeleton className="h-24 w-full" />
               <Skeleton className="h-6 w-full" />
             </div>
+          ) : checksQ.isError ? (
+            <p className="text-sm text-destructive">Failed to load check history</p>
           ) : (
             <>
               <div>
@@ -480,6 +484,8 @@ function SitesPage() {
                 <Skeleton key={i} className="h-12 w-full" />
               ))}
             </div>
+          ) : sitesQ.isError ? (
+            <p className="py-12 text-sm text-destructive text-center">Failed to load sites</p>
           ) : sites.length === 0 ? (
             <div className="py-16 text-center">
               <Globe size={32} className="mx-auto mb-3 text-muted-foreground" />

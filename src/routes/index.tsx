@@ -63,6 +63,7 @@ function MetricCard({
   icon: Icon,
   to,
   loading,
+  error,
 }: {
   title: string
   value: string
@@ -70,6 +71,7 @@ function MetricCard({
   icon: React.ElementType
   to: string
   loading?: boolean
+  error?: boolean
 }) {
   return (
     <Card>
@@ -80,6 +82,8 @@ function MetricCard({
       <CardContent>
         {loading ? (
           <Skeleton className="h-8 w-32" />
+        ) : error ? (
+          <p className="text-sm text-destructive">Failed to load</p>
         ) : (
           <>
             <div className="text-2xl font-bold">{value}</div>
@@ -114,16 +118,17 @@ function Overview() {
   const devicesOnline = devices.filter((d) => deviceStatus(d) === 'online').length
   const mortgage = mortgages[0]
   const mortgageAccount = accounts.find((a) => a.id === mortgage?.account_id)
-  const paidOff = mortgage && mortgageAccount
-    ? Math.max(
-        0,
-        Math.round(
-          ((mortgage.original_principal_cents - (mortgageAccount.latest_balance_cents ?? 0)) /
-            mortgage.original_principal_cents) *
-            100,
-        ),
-      )
-    : null
+  const paidOff =
+    mortgage && mortgageAccount && mortgageAccount.latest_balance_cents != null
+      ? Math.max(
+          0,
+          Math.round(
+            ((mortgage.original_principal_cents - mortgageAccount.latest_balance_cents) /
+              mortgage.original_principal_cents) *
+              100,
+          ),
+        )
+      : null
 
   return (
     <div className="p-6 space-y-6">
@@ -140,28 +145,36 @@ function Overview() {
           icon={TrendingUp}
           to="/net-worth"
           loading={accountsQ.isLoading}
+          error={accountsQ.isError}
         />
         <MetricCard
           title="Mortgage"
           value={paidOff != null ? `${paidOff}% paid` : '—'}
-          sub={mortgageAccount ? formatCurrency(mortgageAccount.latest_balance_cents ?? 0) + ' remaining' : undefined}
+          sub={
+            mortgageAccount?.latest_balance_cents != null
+              ? formatCurrency(mortgageAccount.latest_balance_cents) + ' remaining'
+              : undefined
+          }
           icon={Home}
           to="/mortgage"
           loading={mortgagesQ.isLoading}
+          error={mortgagesQ.isError}
         />
         <MetricCard
           title="Devices Online"
-          value={devicesQ.isLoading ? '…' : `${devicesOnline} / ${devices.length}`}
+          value={`${devicesOnline} / ${devices.length}`}
           icon={Monitor}
           to="/devices"
           loading={devicesQ.isLoading}
+          error={devicesQ.isError}
         />
         <MetricCard
           title="Sites Up"
-          value={sitesQ.isLoading ? '…' : `${sitesUp} / ${sites.length}`}
+          value={`${sitesUp} / ${sites.length}`}
           icon={Globe}
           to="/sites"
           loading={sitesQ.isLoading}
+          error={sitesQ.isError}
         />
       </div>
 
@@ -173,6 +186,8 @@ function Overview() {
         <CardContent>
           {trendQ.isLoading ? (
             <Skeleton className="h-48 w-full" />
+          ) : trendQ.isError ? (
+            <p className="h-48 flex items-center justify-center text-sm text-destructive">Failed to load trend data</p>
           ) : (
             <NetWorthTrend data={trendQ.data ?? []} height={192} />
           )}

@@ -579,6 +579,14 @@ function MortgagePage() {
     )
   }
 
+  if (mortgagesQ.isError || propertiesQ.isError || accountsQ.isError) {
+    return (
+      <div className="p-6">
+        <p className="text-sm text-destructive">Failed to load mortgage data</p>
+      </div>
+    )
+  }
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">

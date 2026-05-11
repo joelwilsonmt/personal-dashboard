@@ -3,7 +3,7 @@
  * Can be ported to a standalone Node service against the same SQLite file.
  */
 import cron from 'node-cron'
-import { eq, and } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { db } from '../db/client'
 import { sites, site_checks } from '@shared/db/schema'
@@ -17,9 +17,9 @@ const lastStatus = new Map<string, boolean>()
 async function checkSite(
   site: typeof sites.$inferSelect,
 ): Promise<{ ok: boolean; status_code: number | null; response_ms: number | null; error: string | null }> {
-  const start = Date.now()
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
+  let start = Date.now()
 
   try {
     let res = await fetch(site.url, {
@@ -31,6 +31,7 @@ async function checkSite(
       clearTimeout(timer)
       const getController = new AbortController()
       const getTimer = setTimeout(() => getController.abort(), TIMEOUT_MS)
+      start = Date.now() // reset timer to measure only the GET
       res = await fetch(site.url, { method: 'GET', signal: getController.signal, redirect: 'follow' })
       clearTimeout(getTimer)
     } else {
@@ -49,7 +50,10 @@ async function checkSite(
   }
 }
 
-async function runCheck(site: typeof sites.$inferSelect): Promise<void> {
+async function runCheck(siteId: string): Promise<void> {
+  const site = await db.select().from(sites).where(eq(sites.id, siteId)).get()
+  if (!site || !site.is_active) return
+
   const result = await checkSite(site)
   const now = new Date()
 
@@ -93,7 +97,7 @@ export async function startSiteMonitor(): Promise<void> {
   const activeSites = await db
     .select()
     .from(sites)
-    .where(and(eq(sites.is_active, true)))
+    .where(eq(sites.is_active, true))
 
   for (const site of activeSites) {
     scheduleCheck(site)
@@ -104,7 +108,7 @@ export async function startSiteMonitor(): Promise<void> {
 export function scheduleCheck(site: typeof sites.$inferSelect): void {
   stopCheck(site.id)
   const cronExpr = intervalFromSeconds(site.check_interval_seconds)
-  const task = cron.schedule(cronExpr, () => void runCheck(site))
+  const task = cron.schedule(cronExpr, () => void runCheck(site.id))
   tasks.set(site.id, task)
 }
 
