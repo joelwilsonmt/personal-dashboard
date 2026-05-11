@@ -3,10 +3,11 @@
  * Runs on 127.0.0.1:53117 (configurable).
  */
 import http from 'node:http'
-import { eq } from 'drizzle-orm'
+import { eq, and, lt } from 'drizzle-orm'
 import { z } from 'zod'
+import { nanoid } from 'nanoid'
 import { db } from '../db/client'
-import { devices } from '@shared/db/schema'
+import { devices, device_metrics } from '@shared/db/schema'
 import { log } from '../logger'
 
 const AgentReportSchema = z.object({
@@ -82,13 +83,31 @@ export function startDeviceServer(port = 53117): void {
         const body = await parseBody(req)
         const metrics = AgentReportSchema.parse(body)
 
+        const now = new Date()
         await db
           .update(devices)
           .set({
-            last_seen_at: new Date(),
+            last_seen_at: now,
             last_metrics_json: JSON.stringify(metrics),
           })
           .where(eq(devices.id, device.id))
+
+        await db.insert(device_metrics).values({
+          id: nanoid(),
+          device_id: device.id,
+          recorded_at: now,
+          cpu: metrics.cpu,
+          ram: metrics.ram,
+          disk: metrics.disk,
+          battery: metrics.battery ?? null,
+          network: metrics.network ?? null,
+        })
+
+        // Prune records older than 7 days to bound table size
+        const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+        await db
+          .delete(device_metrics)
+          .where(and(eq(device_metrics.device_id, device.id), lt(device_metrics.recorded_at, cutoff)))
 
         sendJSON(res, 200, { ok: true })
         log.debug({ device: device.name }, 'Agent report received')

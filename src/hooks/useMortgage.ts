@@ -65,3 +65,12 @@ export function useUpsertExtraPayment() {
     onSuccess: () => qc.invalidateQueries({ queryKey: mortgageKeys.all }),
   })
 }
+
+export function useSaveRecurring() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: Parameters<typeof window.api.mortgages.saveRecurring>[0]) =>
+      window.api.mortgages.saveRecurring(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: mortgageKeys.all }),
+  })
+}

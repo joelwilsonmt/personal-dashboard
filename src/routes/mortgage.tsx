@@ -1,8 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState, useMemo, useEffect } from 'react'
 import { toast } from 'sonner'
-import { Home, Plus, TrendingUp } from 'lucide-react'
-import { useMortgages, useProperties, useCreateMortgage, useCreateProperty, useAddHomeValue } from '@/hooks/useMortgage'
+import { Home, Plus, TrendingUp, Save } from 'lucide-react'
+import { useMortgages, useProperties, useCreateMortgage, useCreateProperty, useAddHomeValue, useSaveRecurring } from '@/hooks/useMortgage'
 import { useAccounts, useCreateAccount } from '@/hooks/useAccounts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -20,6 +20,7 @@ import {
   comparePayoff,
   bpsToPercent,
   biweeklyExtraMonthly,
+  type AmortizationRow,
 } from '@/lib/mortgage'
 import {
   formatCurrency,
@@ -159,10 +160,110 @@ function PropertyHero({ property, mortgage, currentBalance }: {
   )
 }
 
+function RefinanceCalculator({ mortgage, currentBalance }: {
+  mortgage: MortgageWithDetails
+  currentBalance: number | null
+}) {
+  const [newRate, setNewRate] = useState('')
+  const [newTermYears, setNewTermYears] = useState('30')
+  const [closingCosts, setClosingCosts] = useState('')
+
+  const ratePct = bpsToPercent(mortgage.interest_rate_bps)
+  const balance = currentBalance ?? mortgage.original_principal_cents
+  const currentPaymentAmt = monthlyPayment(mortgage.original_principal_cents, ratePct, mortgage.term_months)
+  const currentMonthIdx = Math.max(1, Math.min(
+    differenceInMonths(new Date(), new Date(mortgage.start_date)) + 1,
+    mortgage.term_months,
+  ))
+  const remainingMonths = Math.max(1, mortgage.term_months - currentMonthIdx + 1)
+
+  const analysis = useMemo(() => {
+    const rate = parseFloat(newRate)
+    const termMonths = parseInt(newTermYears) * 12
+    if (!rate || rate <= 0 || !termMonths) return null
+    const costsCents = displayToCents(parseFloat(closingCosts || '0'))
+    const newPaymentAmt = monthlyPayment(balance, rate, termMonths)
+    const monthlySavings = currentPaymentAmt - newPaymentAmt
+    const currentRemainingInterest = amortizationSchedule(balance, ratePct, remainingMonths)
+      .reduce((s, r) => s + r.interest, 0)
+    const newTotalInterest = amortizationSchedule(balance, rate, termMonths)
+      .reduce((s, r) => s + r.interest, 0)
+    const totalInterestSaved = currentRemainingInterest - newTotalInterest - costsCents
+    const breakEvenMonths = monthlySavings > 0 ? Math.ceil(costsCents / monthlySavings) : null
+    return { newPaymentAmt, monthlySavings, totalInterestSaved, breakEvenMonths }
+  }, [newRate, newTermYears, closingCosts, balance, currentPaymentAmt, remainingMonths, ratePct])
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium">Refinance Calculator</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="space-y-1.5">
+            <Label>New rate (%)</Label>
+            <Input
+              type="number" step="0.001"
+              value={newRate}
+              onChange={(e) => setNewRate(e.target.value)}
+              placeholder={ratePct.toFixed(3)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>New term (years)</Label>
+            <Input
+              type="number"
+              value={newTermYears}
+              onChange={(e) => setNewTermYears(e.target.value)}
+              placeholder="30"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Closing costs ($)</Label>
+            <Input
+              type="number" step="100"
+              value={closingCosts}
+              onChange={(e) => setClosingCosts(e.target.value)}
+              placeholder="5000"
+            />
+          </div>
+        </div>
+        {analysis && (
+          <div className="rounded-lg border p-4 grid grid-cols-2 sm:grid-cols-4 gap-4 bg-secondary/40">
+            <div>
+              <p className="text-xs text-muted-foreground">New payment</p>
+              <p className="text-lg font-bold mt-0.5">{formatCurrency(analysis.newPaymentAmt)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Monthly savings</p>
+              <p className={`text-lg font-bold mt-0.5 ${analysis.monthlySavings >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {analysis.monthlySavings >= 0 ? '+' : ''}{formatCurrency(analysis.monthlySavings)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Interest saved</p>
+              <p className={`text-lg font-bold mt-0.5 ${analysis.totalInterestSaved >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {analysis.totalInterestSaved >= 0 ? '+' : ''}{formatCurrency(analysis.totalInterestSaved)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Break-even</p>
+              <p className="text-lg font-bold mt-0.5">
+                {analysis.breakEvenMonths != null ? `${analysis.breakEvenMonths} mo` : '—'}
+              </p>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 function PayoffScenarios({ mortgage }: { mortgage: MortgageWithDetails }) {
   const [extraMonthly, setExtraMonthly] = useState(0)
   const [lumpSum, setLumpSum] = useState(0)
   const [biweekly, setBiweekly] = useState(false)
+  const saveRecurring = useSaveRecurring()
 
   const ratePct = bpsToPercent(mortgage.interest_rate_bps)
   const basePayment = monthlyPayment(
@@ -291,14 +392,42 @@ function PayoffScenarios({ mortgage }: { mortgage: MortgageWithDetails }) {
             </div>
           </div>
         )}
+        {(extraMonthly > 0 || biweekly) && (
+          <div className="flex justify-end">
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              disabled={saveRecurring.isPending}
+              onClick={() =>
+                saveRecurring.mutate(
+                  {
+                    mortgage_id: mortgage.id,
+                    extra_monthly_cents: Math.round(extraMonthly * 100),
+                    biweekly,
+                    applied_date: new Date().toISOString().slice(0, 10),
+                  },
+                  {
+                    onSuccess: () => toast.success('Recurring payments saved'),
+                    onError: (err) => toast.error(err.message),
+                  },
+                )
+              }
+            >
+              <Save size={13} />
+              Save recurring payments
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   )
 }
 
-function MortgageDetail({ mortgage, currentBalance }: {
+function MortgageDetail({ mortgage, currentBalance, homeValue }: {
   mortgage: MortgageWithDetails
   currentBalance: number | null
+  homeValue?: number | null
 }) {
   const ratePct = bpsToPercent(mortgage.interest_rate_bps)
   const balance = currentBalance ?? mortgage.original_principal_cents
@@ -313,17 +442,33 @@ function MortgageDetail({ mortgage, currentBalance }: {
   )
 
   const scheduleWithExtras = useMemo(() => {
-    const extraPaymentInputs = mortgage.extra_payments.map((ep) => ({
-      month: Math.max(1, differenceInMonths(new Date(ep.applied_date), new Date(mortgage.start_date)) + 1),
-      amount: ep.amount_cents,
-    }))
+    const extraPaymentInputs = mortgage.extra_payments.flatMap((ep) => {
+      const startMonth = Math.max(
+        1,
+        differenceInMonths(new Date(ep.applied_date), new Date(mortgage.start_date)) + 1,
+      )
+      if (ep.kind === 'extra_monthly') {
+        return Array.from({ length: Math.max(0, mortgage.term_months - startMonth + 1) }, (_, i) => ({
+          month: startMonth + i,
+          amount: ep.amount_cents,
+        }))
+      }
+      if (ep.kind === 'biweekly_conversion') {
+        const biweeklyAmt = biweeklyExtraMonthly(payment)
+        return Array.from({ length: Math.max(0, mortgage.term_months - startMonth + 1) }, (_, i) => ({
+          month: startMonth + i,
+          amount: biweeklyAmt,
+        }))
+      }
+      return [{ month: startMonth, amount: ep.amount_cents }]
+    })
     return amortizationSchedule(
       mortgage.original_principal_cents,
       ratePct,
       mortgage.term_months,
       extraPaymentInputs,
     )
-  }, [mortgage.original_principal_cents, ratePct, mortgage.term_months, mortgage.extra_payments, mortgage.start_date])
+  }, [mortgage.original_principal_cents, ratePct, mortgage.term_months, mortgage.extra_payments, mortgage.start_date, payment])
 
   const currentMonth = Math.max(
     1,
@@ -391,6 +536,56 @@ function MortgageDetail({ mortgage, currentBalance }: {
       </Card>
 
       <PayoffScenarios mortgage={mortgage} />
+
+      <RefinanceCalculator mortgage={mortgage} currentBalance={currentBalance} />
+
+      {(() => {
+        const pmiBase = homeValue ?? mortgage.original_principal_cents
+        if (!pmiBase) return null
+        const pmiThreshold = pmiBase * 0.8
+        const ltv = balance / pmiBase
+        if (ltv <= 0.8) return null
+        const removalRow = baseSchedule.find((r) => r.balance <= pmiThreshold)
+        const removalMonth = removalRow?.month ?? null
+        const monthsLeft = removalMonth != null ? Math.max(0, removalMonth - currentMonth) : null
+        return (
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-medium">PMI Tracker</CardTitle>
+                <Badge variant="outline" className="text-xs text-amber-500 border-amber-500/40">Active</Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <p className="text-xs text-muted-foreground">Current LTV</p>
+                  <p className="text-lg font-bold mt-0.5 text-amber-400">{formatPercent(ltv * 100)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">PMI removal at</p>
+                  <p className="text-lg font-bold mt-0.5">80% LTV</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Balance ≤ {formatCurrency(pmiThreshold)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Estimated removal</p>
+                  <p className="text-lg font-bold mt-0.5">
+                    {monthsLeft != null ? `${monthsLeft} mo` : '—'}
+                  </p>
+                  {removalMonth != null && (
+                    <p className="text-xs text-muted-foreground mt-0.5">month {removalMonth}</p>
+                  )}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground mt-3">
+                You can request PMI cancellation once your balance reaches 80% LTV. Lenders are required to auto-cancel at 78% LTV.
+              </p>
+            </CardContent>
+          </Card>
+        )
+      })()}
     </div>
   )
 }
@@ -623,7 +818,11 @@ function MortgagePage() {
             currentBalance={currentBalance}
           />
           {mortgage && (
-            <MortgageDetail mortgage={mortgage} currentBalance={currentBalance} />
+            <MortgageDetail
+              mortgage={mortgage}
+              currentBalance={currentBalance}
+              homeValue={property?.latest_value_cents ?? property?.purchase_price_cents ?? null}
+            />
           )}
         </>
       )}

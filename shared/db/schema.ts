@@ -108,6 +108,29 @@ export const home_value_snapshots = sqliteTable(
 )
 
 // ---------------------------------------------------------------------------
+// device_metrics
+// ---------------------------------------------------------------------------
+
+export const device_metrics = sqliteTable(
+  'device_metrics',
+  {
+    id: text('id').primaryKey(),
+    device_id: text('device_id')
+      .notNull()
+      .references(() => devices.id, { onDelete: 'cascade' }),
+    recorded_at: integer('recorded_at', { mode: 'timestamp' }).notNull(),
+    cpu: real('cpu').notNull(),
+    ram: real('ram').notNull(),
+    disk: real('disk').notNull(),
+    battery: real('battery'),
+    network: real('network'),
+  },
+  (t) => [
+    index('device_metrics_device_recorded').on(t.device_id, t.recorded_at),
+  ],
+)
+
+// ---------------------------------------------------------------------------
 // devices
 // ---------------------------------------------------------------------------
 
@@ -135,6 +158,7 @@ export const sites = sqliteTable('sites', {
   is_active: integer('is_active', { mode: 'boolean' }).notNull().default(true),
   alert_on_down: integer('alert_on_down', { mode: 'boolean' }).notNull().default(true),
   alert_on_slow_ms: integer('alert_on_slow_ms'),
+  ssl_expires_at: integer('ssl_expires_at', { mode: 'timestamp' }),
   created_at: integer('created_at', { mode: 'timestamp' }).notNull(),
 })
 

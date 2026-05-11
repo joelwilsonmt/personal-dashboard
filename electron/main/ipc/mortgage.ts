@@ -1,4 +1,4 @@
-import { eq, desc, inArray } from 'drizzle-orm'
+import { eq, desc, inArray, and } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { db } from '../db/client'
 import {
@@ -16,7 +16,9 @@ import {
   CreatePropertyRequest,
   AddHomeValueSnapshotRequest,
   GetHomeValueHistoryRequest,
+  SaveRecurringPaymentsRequest,
 } from '@shared/ipc/contracts'
+import { sql } from 'drizzle-orm'
 import { log } from '../logger'
 import { handle } from './handle'
 
@@ -96,6 +98,41 @@ export function registerMortgageHandlers(): void {
     const { id } = DeleteExtraPaymentRequest.parse(raw)
     await db.delete(mortgage_extra_payments).where(eq(mortgage_extra_payments.id, id))
     return { deleted: true }
+  })
+
+  handle('mortgages:saveRecurring', async (_e, raw) => {
+    const data = SaveRecurringPaymentsRequest.parse(raw)
+    // Delete all existing recurring kinds for this mortgage
+    await db
+      .delete(mortgage_extra_payments)
+      .where(
+        and(
+          eq(mortgage_extra_payments.mortgage_id, data.mortgage_id),
+          sql`${mortgage_extra_payments.kind} IN ('extra_monthly', 'biweekly_conversion')`,
+        ),
+      )
+    let saved = 0
+    if (data.extra_monthly_cents > 0) {
+      await db.insert(mortgage_extra_payments).values({
+        id: nanoid(),
+        mortgage_id: data.mortgage_id,
+        kind: 'extra_monthly',
+        amount_cents: data.extra_monthly_cents,
+        applied_date: new Date(data.applied_date),
+      })
+      saved++
+    }
+    if (data.biweekly) {
+      await db.insert(mortgage_extra_payments).values({
+        id: nanoid(),
+        mortgage_id: data.mortgage_id,
+        kind: 'biweekly_conversion',
+        amount_cents: 0, // actual amount computed from base payment at display time
+        applied_date: new Date(data.applied_date),
+      })
+      saved++
+    }
+    return { saved }
   })
 
   // properties

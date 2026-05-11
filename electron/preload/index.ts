@@ -9,6 +9,7 @@ import type {
   CreateMortgageRequest,
   UpsertExtraPaymentRequest,
   DeleteExtraPaymentRequest,
+  SaveRecurringPaymentsRequest,
   CreatePropertyRequest,
   AddHomeValueSnapshotRequest,
   GetHomeValueHistoryRequest,
@@ -18,6 +19,7 @@ import type {
   GetSiteChecksRequest,
   CreateDeviceRequest,
   DeleteDeviceRequest,
+  GetDeviceHistoryRequest,
   UpdateSettingsRequest,
 } from '@shared/ipc/contracts'
 
@@ -58,6 +60,8 @@ const api = {
       invoke('mortgages:upsertExtraPayment', req),
     deleteExtraPayment: (req: In<typeof DeleteExtraPaymentRequest>) =>
       invoke('mortgages:deleteExtraPayment', req),
+    saveRecurring: (req: In<typeof SaveRecurringPaymentsRequest>) =>
+      invoke('mortgages:saveRecurring', req),
   },
 
   // Properties
@@ -84,6 +88,7 @@ const api = {
     list: () => invoke('devices:list', {}),
     create: (req: In<typeof CreateDeviceRequest>) => invoke('devices:create', req),
     delete: (req: In<typeof DeleteDeviceRequest>) => invoke('devices:delete', req),
+    getHistory: (req: In<typeof GetDeviceHistoryRequest>) => invoke('devices:getHistory', req),
   },
 
   // Settings

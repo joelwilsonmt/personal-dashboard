@@ -83,6 +83,17 @@ export const HomeValueSnapshotSchema = z.object({
   notes: z.string(),
 })
 
+export const DeviceMetricSchema = z.object({
+  id: z.string(),
+  device_id: z.string(),
+  recorded_at: z.date(),
+  cpu: z.number(),
+  ram: z.number(),
+  disk: z.number(),
+  battery: z.number().nullable(),
+  network: z.number().nullable(),
+})
+
 export const SiteSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -91,6 +102,7 @@ export const SiteSchema = z.object({
   is_active: z.boolean(),
   alert_on_down: z.boolean(),
   alert_on_slow_ms: z.number().nullable(),
+  ssl_expires_at: z.date().nullable(),
   created_at: z.date(),
   // Computed stats
   latest_check: z
@@ -293,6 +305,22 @@ export const CreateDeviceResponse = DeviceSchema
 
 export const DeleteDeviceRequest = z.object({ id: z.string() })
 export const DeleteDeviceResponse = z.object({ deleted: z.boolean() })
+
+export const GetDeviceHistoryRequest = z.object({
+  device_id: z.string(),
+  limit: z.number().default(200),
+})
+export const GetDeviceHistoryResponse = z.array(DeviceMetricSchema)
+
+// Atomically replaces all recurring extra payments (extra_monthly + biweekly_conversion)
+// for a mortgage. Pass 0 / false to clear.
+export const SaveRecurringPaymentsRequest = z.object({
+  mortgage_id: z.string(),
+  extra_monthly_cents: z.number(),
+  biweekly: z.boolean(),
+  applied_date: z.string(),
+})
+export const SaveRecurringPaymentsResponse = z.object({ saved: z.number() })
 
 // settings
 export const GetSettingsRequest = z.object({})

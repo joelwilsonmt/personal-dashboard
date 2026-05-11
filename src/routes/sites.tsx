@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useState, useId } from 'react'
 import { useTheme } from 'next-themes'
 import { toast } from 'sonner'
-import { Globe, Plus, Pause, Play, Pencil, Trash2, Clock, BarChart3 } from 'lucide-react'
+import { Globe, Plus, Pause, Play, Pencil, Trash2, Clock, BarChart3, ShieldCheck } from 'lucide-react'
 import {
   useSites,
   useCreateSite,
@@ -58,7 +58,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts'
-import { formatRelativeTime, formatResponseTime } from '@/lib/formatters'
+import { formatRelativeTime, formatResponseTime, formatAbsoluteDate } from '@/lib/formatters'
 import type { Site, SiteCheck, SiteStatus } from '@shared/types'
 
 export const Route = createFileRoute('/sites')({
@@ -221,6 +221,24 @@ function SiteFormDialog({
   )
 }
 
+function SslBadge({ expiresAt }: { expiresAt: Date | string | null | undefined }) {
+  if (!expiresAt) return null
+  const d = new Date(expiresAt)
+  const daysLeft = Math.floor((d.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+  const color =
+    daysLeft <= 7
+      ? 'text-red-400 border-red-500/30 bg-red-500/10'
+      : daysLeft <= 30
+        ? 'text-amber-400 border-amber-500/30 bg-amber-500/10'
+        : 'text-green-400 border-green-500/30 bg-green-500/10'
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-xs ${color}`}>
+      <ShieldCheck size={10} />
+      {daysLeft <= 0 ? 'Expired' : `${daysLeft}d`}
+    </span>
+  )
+}
+
 function SiteChecksChart({ checks }: { checks: SiteCheck[] }) {
   const id = useId()
   const { resolvedTheme } = useTheme()
@@ -357,6 +375,20 @@ function SiteDrawer({ site, onClose }: { site: Site; onClose: () => void }) {
                 </p>
                 <StatusTimeline checks={checks} />
               </div>
+
+              {site.ssl_expires_at && (
+                <div className="flex items-center gap-2">
+                  <ShieldCheck size={13} className="text-muted-foreground shrink-0" />
+                  <p className="text-xs text-muted-foreground">
+                    SSL cert expires{' '}
+                    <span className="font-medium text-foreground">
+                      {formatAbsoluteDate(site.ssl_expires_at)}
+                    </span>
+                    {' '}
+                    <SslBadge expiresAt={site.ssl_expires_at} />
+                  </p>
+                </div>
+              )}
 
               <div>
                 <p className="text-xs font-medium text-muted-foreground mb-2">Recent incidents</p>
@@ -507,6 +539,7 @@ function SitesPage() {
                   <TableHead>Status</TableHead>
                   <TableHead>Response time</TableHead>
                   <TableHead>30d uptime</TableHead>
+                  <TableHead>SSL</TableHead>
                   <TableHead>Last checked</TableHead>
                   <TableHead className="w-10" />
                 </TableRow>
@@ -541,6 +574,9 @@ function SitesPage() {
                       </TableCell>
                       <TableCell>
                         <UptimeBar pct={site.uptime_30d_pct} />
+                      </TableCell>
+                      <TableCell>
+                        <SslBadge expiresAt={site.ssl_expires_at} />
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         {site.latest_check

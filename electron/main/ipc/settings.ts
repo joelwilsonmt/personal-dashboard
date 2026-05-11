@@ -20,7 +20,8 @@ const TABLE_COLUMNS: Record<string, ReadonlySet<string>> = {
   properties: new Set(['id', 'address', 'purchase_price_cents', 'purchase_date', 'beds', 'baths', 'sqft', 'year_built', 'zillow_zpid', 'created_at', 'updated_at']),
   home_value_snapshots: new Set(['id', 'property_id', 'value_cents', 'recorded_at', 'source', 'notes']),
   devices: new Set(['id', 'name', 'kind', 'agent_token', 'last_seen_at', 'last_metrics_json', 'created_at']),
-  sites: new Set(['id', 'name', 'url', 'check_interval_seconds', 'is_active', 'alert_on_down', 'alert_on_slow_ms', 'created_at']),
+  device_metrics: new Set(['id', 'device_id', 'recorded_at', 'cpu', 'ram', 'disk', 'battery', 'network']),
+  sites: new Set(['id', 'name', 'url', 'check_interval_seconds', 'is_active', 'alert_on_down', 'alert_on_slow_ms', 'ssl_expires_at', 'created_at']),
   site_checks: new Set(['id', 'site_id', 'checked_at', 'status_code', 'response_ms', 'ok', 'error_message']),
 }
 
@@ -71,6 +72,7 @@ export function registerSettingsHandlers(): void {
       'properties',
       'home_value_snapshots',
       'devices',
+      'device_metrics',
       'sites',
       'site_checks',
     ]
@@ -100,7 +102,7 @@ export function registerSettingsHandlers(): void {
 
     // Delete children before parents, insert parents before children.
     const deleteOrder = [
-      'site_checks', 'home_value_snapshots', 'mortgage_extra_payments',
+      'device_metrics', 'site_checks', 'home_value_snapshots', 'mortgage_extra_payments',
       'balance_snapshots', 'devices',
       'sites', 'mortgages', 'properties', 'accounts',
     ]

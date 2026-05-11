@@ -1,8 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { Monitor, Plus, Cpu, HardDrive, MemoryStick, Trash2, Copy } from 'lucide-react'
-import { useDevices, useCreateDevice, useDeleteDevice } from '@/hooks/useDevices'
+import { Monitor, Plus, Cpu, HardDrive, MemoryStick, Trash2, Copy, BarChart3 } from 'lucide-react'
+import { useDevices, useCreateDevice, useDeleteDevice, useDeviceHistory } from '@/hooks/useDevices'
+import { DeviceMetricsChart } from '@/components/charts/DeviceMetricsChart'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -198,6 +199,7 @@ curl -s -X POST http://127.0.0.1:${port}/agent/report \\
 function DeviceDrawer({ device, onClose }: { device: Device; onClose: () => void }) {
   const metrics = parseMetrics(device.last_metrics_json)
   const status = getDeviceStatus(device)
+  const historyQ = useDeviceHistory(device.id)
 
   return (
     <Drawer open onOpenChange={(open) => !open && onClose()}>
@@ -228,6 +230,20 @@ function DeviceDrawer({ device, onClose }: { device: Device; onClose: () => void
               ))}
             </div>
           )}
+
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+              <BarChart3 size={12} /> Metrics history (last 200 reports)
+            </p>
+            {historyQ.isLoading ? (
+              <Skeleton className="h-40 w-full" />
+            ) : historyQ.data && historyQ.data.length > 0 ? (
+              <DeviceMetricsChart metrics={historyQ.data} height={160} />
+            ) : (
+              <p className="text-xs text-muted-foreground text-center py-6">No history yet — agent hasn't reported.</p>
+            )}
+          </div>
+
           <div>
             <h3 className="text-sm font-medium mb-2">Agent install instructions</h3>
             <AgentInstallInstructions device={device} />

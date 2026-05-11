@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer'
 import { Input } from '@/components/ui/input'
@@ -15,7 +16,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { NetWorthTrend } from '@/components/charts/NetWorthTrend'
 import { formatCurrency, formatDelta, formatRelativeTime, displayToCents, centsToDisplay } from '@/lib/formatters'
-import type { Account } from '@shared/types'
+import type { Account, NetWorthPoint } from '@shared/types'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 export const Route = createFileRoute('/net-worth')({
@@ -438,6 +439,85 @@ function UpdateBalancesDialog({
   )
 }
 
+function CashFlowCard({
+  accounts,
+  trendData,
+}: {
+  accounts: Account[]
+  trendData: NetWorthPoint[]
+}) {
+  const liquid = accounts
+    .filter((a) => a.kind === 'asset' && (a.type === 'checking' || a.type === 'savings'))
+    .reduce((s, a) => s + (a.latest_balance_cents ?? 0), 0)
+
+  const last2 = trendData.slice(-2)
+  const monthlyDelta =
+    last2.length === 2
+      ? (last2[1]?.net_worth_cents ?? 0) - (last2[0]?.net_worth_cents ?? 0)
+      : null
+
+  const monthlyBurn = monthlyDelta != null && monthlyDelta < 0 ? -monthlyDelta : null
+  const runwayMonths = monthlyBurn && monthlyBurn > 0 ? Math.floor(liquid / monthlyBurn) : null
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium">Cash Flow</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div>
+            <p className="text-xs text-muted-foreground">Liquid assets</p>
+            <p className="text-lg font-bold mt-0.5 tabular-nums">{formatCurrency(liquid)}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Checking + savings</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Monthly change</p>
+            {monthlyDelta != null ? (
+              <p
+                className={`text-lg font-bold mt-0.5 tabular-nums ${
+                  monthlyDelta >= 0 ? 'text-green-500' : 'text-red-400'
+                }`}
+              >
+                {formatDelta(monthlyDelta)}
+              </p>
+            ) : (
+              <p className="text-lg font-bold mt-0.5 text-muted-foreground">—</p>
+            )}
+            <p className="text-xs text-muted-foreground mt-0.5">vs prior month</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Runway</p>
+            {runwayMonths != null ? (
+              <p className="text-lg font-bold mt-0.5">
+                {runwayMonths >= 120 ? '10+ yr' : runwayMonths >= 24 ? `${Math.floor(runwayMonths / 12)} yr` : `${runwayMonths} mo`}
+              </p>
+            ) : (
+              <p className="text-lg font-bold mt-0.5 text-muted-foreground">—</p>
+            )}
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {runwayMonths != null ? 'at current burn' : monthlyDelta != null && monthlyDelta >= 0 ? 'Net positive' : 'Need 2+ months'}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Monthly burn</p>
+            {monthlyBurn != null ? (
+              <p className="text-lg font-bold mt-0.5 text-red-400 tabular-nums">
+                {formatCurrency(monthlyBurn)}
+              </p>
+            ) : (
+              <p className="text-lg font-bold mt-0.5 text-muted-foreground">—</p>
+            )}
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {monthlyBurn != null ? 'net drawdown' : 'No drawdown'}
+            </p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 function NetWorthPage() {
   const accountsQ = useAccounts()
   const trendQ = useNetWorthTrend(12)
@@ -550,6 +630,11 @@ function NetWorthPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Cash flow */}
+      {!accountsQ.isLoading && !trendQ.isLoading && (
+        <CashFlowCard accounts={accounts} trendData={trendData} />
+      )}
 
       {/* Account lists */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
