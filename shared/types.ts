@@ -9,7 +9,6 @@ import type {
   SiteSchema,
   SiteCheckSchema,
   DeviceSchema,
-  MonthlyExpenseSchema,
   GetSettingsResponse,
   ListMortgagesResponse,
   ListPropertiesResponse,
@@ -25,7 +24,6 @@ export type HomeValueSnapshot = z.infer<typeof HomeValueSnapshotSchema>
 export type Site = z.infer<typeof SiteSchema>
 export type SiteCheck = z.infer<typeof SiteCheckSchema>
 export type Device = z.infer<typeof DeviceSchema>
-export type MonthlyExpense = z.infer<typeof MonthlyExpenseSchema>
 export type Settings = z.infer<typeof GetSettingsResponse>
 export type MortgageWithDetails = z.infer<typeof ListMortgagesResponse>[number]
 export type PropertyWithValue = z.infer<typeof ListPropertiesResponse>[number]

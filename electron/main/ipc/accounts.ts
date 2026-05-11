@@ -1,4 +1,3 @@
-import { ipcMain } from 'electron'
 import { eq, desc, and, gte, sql, inArray } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { db } from '../db/client'
@@ -14,6 +13,7 @@ import {
 } from '@shared/ipc/contracts'
 import type { Account } from '@shared/types'
 import { log } from '../logger'
+import { handle } from './handle'
 
 function accountWithBalance(
   acct: typeof accounts.$inferSelect,
@@ -27,23 +27,38 @@ function accountWithBalance(
   }
 }
 
-async function getLatestSnapshot(accountId: string) {
-  const rows = await db
+// Fetches only the single latest snapshot per account via correlated subquery.
+// Avoids loading the full snapshot history when only the most recent row is needed.
+async function latestSnapshotsForAccounts(
+  accountIds: string[],
+): Promise<Map<string, typeof balance_snapshots.$inferSelect>> {
+  const map = new Map<string, typeof balance_snapshots.$inferSelect>()
+  if (accountIds.length === 0) return map
+  const snaps = await db
     .select()
     .from(balance_snapshots)
-    .where(eq(balance_snapshots.account_id, accountId))
-    .orderBy(desc(balance_snapshots.recorded_at))
-    .limit(1)
-  return rows[0] ?? null
+    .where(
+      and(
+        inArray(balance_snapshots.account_id, accountIds),
+        sql`${balance_snapshots.recorded_at} = (
+          SELECT MAX(recorded_at) FROM balance_snapshots b2
+          WHERE b2.account_id = ${balance_snapshots.account_id}
+        )`,
+      ),
+    )
+  for (const s of snaps) {
+    map.set(s.account_id, s)
+  }
+  return map
 }
 
 export function registerAccountHandlers(): void {
-  ipcMain.handle('ping', (_e, raw: unknown) => {
+  handle('ping', (_e, raw) => {
     PingRequest.parse(raw ?? {})
     return { pong: true, ts: Date.now() }
   })
 
-  ipcMain.handle('accounts:list', async (_e, raw: unknown) => {
+  handle('accounts:list', async (_e, raw) => {
     const { kind, includeArchived } = ListAccountsRequest.parse(raw ?? {})
     const rows = await db
       .select()
@@ -55,22 +70,11 @@ export function registerAccountHandlers(): void {
         ),
       )
       .orderBy(accounts.name)
-    const accountIds = rows.map(r => r.id)
-    const snapshotMap = new Map<string, typeof balance_snapshots.$inferSelect>()
-    if (accountIds.length > 0) {
-      const snaps = await db
-        .select()
-        .from(balance_snapshots)
-        .where(inArray(balance_snapshots.account_id, accountIds))
-        .orderBy(desc(balance_snapshots.recorded_at))
-      for (const s of snaps) {
-        if (!snapshotMap.has(s.account_id)) snapshotMap.set(s.account_id, s)
-      }
-    }
-    return rows.map(r => accountWithBalance(r, snapshotMap.get(r.id) ?? null))
+    const snapshotMap = await latestSnapshotsForAccounts(rows.map((r) => r.id))
+    return rows.map((r) => accountWithBalance(r, snapshotMap.get(r.id) ?? null))
   })
 
-  ipcMain.handle('accounts:create', async (_e, raw: unknown) => {
+  handle('accounts:create', async (_e, raw) => {
     const data = CreateAccountRequest.parse(raw)
     const now = new Date()
     const id = nanoid()
@@ -97,10 +101,11 @@ export function registerAccountHandlers(): void {
 
     const acct = await db.select().from(accounts).where(eq(accounts.id, id)).get()
     if (!acct) throw new Error('Account not found after insert')
-    return accountWithBalance(acct, await getLatestSnapshot(id))
+    const snapshotMap = await latestSnapshotsForAccounts([id])
+    return accountWithBalance(acct, snapshotMap.get(id) ?? null)
   })
 
-  ipcMain.handle('accounts:update', async (_e, raw: unknown) => {
+  handle('accounts:update', async (_e, raw) => {
     const { id, ...data } = UpdateAccountRequest.parse(raw)
     await db
       .update(accounts)
@@ -108,10 +113,11 @@ export function registerAccountHandlers(): void {
       .where(eq(accounts.id, id))
     const acct = await db.select().from(accounts).where(eq(accounts.id, id)).get()
     if (!acct) throw new Error('Account not found')
-    return accountWithBalance(acct, await getLatestSnapshot(id))
+    const snapshotMap = await latestSnapshotsForAccounts([id])
+    return accountWithBalance(acct, snapshotMap.get(id) ?? null)
   })
 
-  ipcMain.handle('accounts:getHistory', async (_e, raw: unknown) => {
+  handle('accounts:getHistory', async (_e, raw) => {
     const { id } = GetAccountHistoryRequest.parse(raw)
     const acct = await db.select().from(accounts).where(eq(accounts.id, id)).get()
     if (!acct) throw new Error('Account not found')
@@ -127,12 +133,14 @@ export function registerAccountHandlers(): void {
     }
   })
 
-  ipcMain.handle('balances:update', async (_e, raw: unknown) => {
+  handle('balances:update', async (_e, raw) => {
     const { updates } = UpdateBalancesRequest.parse(raw)
     const now = new Date()
+    const accountIds = updates.map((u) => u.account_id)
+    const latestMap = await latestSnapshotsForAccounts(accountIds)
     let updated = 0
     for (const u of updates) {
-      const latest = await getLatestSnapshot(u.account_id)
+      const latest = latestMap.get(u.account_id)
       if (latest?.balance_cents === u.balance_cents) continue
       await db.insert(balance_snapshots).values({
         id: nanoid(),
@@ -146,12 +154,14 @@ export function registerAccountHandlers(): void {
     return { updated }
   })
 
-  ipcMain.handle('accounts:netWorthTrend', async (_e, raw: unknown) => {
+  handle('accounts:netWorthTrend', async (_e, raw) => {
     const { months } = GetNetWorthTrendRequest.parse(raw ?? {})
 
-    const accts = await db.select({ id: accounts.id, kind: accounts.kind }).from(accounts).where(eq(accounts.is_archived, false))
+    const accts = await db
+      .select({ id: accounts.id, kind: accounts.kind })
+      .from(accounts)
+      .where(eq(accounts.is_archived, false))
 
-    // Load only snapshots within the lookback window to avoid unbounded memory use
     const now = new Date()
     const cutoffDate = new Date(now.getFullYear(), now.getMonth() - months, 1)
     const windowSnaps = await db
@@ -169,12 +179,23 @@ export function registerAccountHandlers(): void {
       snapsByAccount.set(s.account_id, arr)
     }
 
-    // For accounts with no snapshot in the window, fall back to their latest ever snapshot
-    for (const acct of accts) {
-      if (accountsInWindow.has(acct.id)) continue
-      const snap = await getLatestSnapshot(acct.id)
-      if (snap) {
-        snapsByAccount.set(acct.id, [{ balance_cents: snap.balance_cents, recorded_at: snap.recorded_at }])
+    // Batch-fetch the latest snapshot for accounts with no data in the window
+    const missingIds = accts.map((a) => a.id).filter((id) => !accountsInWindow.has(id))
+    if (missingIds.length > 0) {
+      const fallbacks = await db
+        .select()
+        .from(balance_snapshots)
+        .where(
+          and(
+            inArray(balance_snapshots.account_id, missingIds),
+            sql`${balance_snapshots.recorded_at} = (
+              SELECT MAX(recorded_at) FROM balance_snapshots b2
+              WHERE b2.account_id = ${balance_snapshots.account_id}
+            )`,
+          ),
+        )
+      for (const s of fallbacks) {
+        snapsByAccount.set(s.account_id, [{ balance_cents: s.balance_cents, recorded_at: s.recorded_at }])
       }
     }
 
@@ -182,10 +203,11 @@ export function registerAccountHandlers(): void {
     for (let i = months - 1; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
       const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999)
-      let assetsCents = 0, liabilitiesCents = 0
+      let assetsCents = 0,
+        liabilitiesCents = 0
       for (const acct of accts) {
         const snap = (snapsByAccount.get(acct.id) ?? []).find(
-          s => s.recorded_at.getTime() <= monthEnd.getTime()
+          (s) => s.recorded_at.getTime() <= monthEnd.getTime(),
         )
         if (snap) {
           if (acct.kind === 'asset') assetsCents += snap.balance_cents

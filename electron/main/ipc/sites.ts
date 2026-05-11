@@ -1,4 +1,3 @@
-import { ipcMain } from 'electron'
 import { eq, desc, and, gte, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { db } from '../db/client'
@@ -12,6 +11,7 @@ import {
 } from '@shared/ipc/contracts'
 import type { Site } from '@shared/types'
 import { log } from '../logger'
+import { handle } from './handle'
 import { stopCheck, scheduleCheck } from '../monitors/site-monitor'
 
 async function siteWithStats(site: typeof sites.$inferSelect): Promise<Site> {
@@ -57,13 +57,13 @@ async function siteWithStats(site: typeof sites.$inferSelect): Promise<Site> {
 }
 
 export function registerSiteHandlers(): void {
-  ipcMain.handle('sites:list', async (_e, raw: unknown) => {
+  handle('sites:list', async (_e, raw: unknown) => {
     ListSitesRequest.parse(raw ?? {})
     const allSites = await db.select().from(sites).orderBy(sites.name)
     return Promise.all(allSites.map(siteWithStats))
   })
 
-  ipcMain.handle('sites:create', async (_e, raw: unknown) => {
+  handle('sites:create', async (_e, raw: unknown) => {
     const data = CreateSiteRequest.parse(raw)
     const id = nanoid()
     const now = new Date()
@@ -82,7 +82,7 @@ export function registerSiteHandlers(): void {
     return siteWithStats(site)
   })
 
-  ipcMain.handle('sites:update', async (_e, raw: unknown) => {
+  handle('sites:update', async (_e, raw: unknown) => {
     const { id, ...data } = UpdateSiteRequest.parse(raw)
     await db.update(sites).set(data).where(eq(sites.id, id))
     const site = await db.select().from(sites).where(eq(sites.id, id)).get()
@@ -92,7 +92,7 @@ export function registerSiteHandlers(): void {
     return siteWithStats(site)
   })
 
-  ipcMain.handle('sites:delete', async (_e, raw: unknown) => {
+  handle('sites:delete', async (_e, raw: unknown) => {
     const { id } = DeleteSiteRequest.parse(raw)
     stopCheck(id)
     await db.delete(site_checks).where(eq(site_checks.site_id, id))
@@ -100,7 +100,7 @@ export function registerSiteHandlers(): void {
     return { deleted: true }
   })
 
-  ipcMain.handle('sites:getChecks', async (_e, raw: unknown) => {
+  handle('sites:getChecks', async (_e, raw: unknown) => {
     const { site_id, limit } = GetSiteChecksRequest.parse(raw)
     return db
       .select()

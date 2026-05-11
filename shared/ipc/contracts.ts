@@ -125,15 +125,6 @@ export const DeviceSchema = z.object({
   created_at: z.date(),
 })
 
-export const MonthlyExpenseSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  amount_cents: z.number(),
-  category: z.string(),
-  due_day: z.number(),
-  is_active: z.boolean(),
-})
-
 // ---------------------------------------------------------------------------
 // Channel request/response pairs
 // ---------------------------------------------------------------------------
@@ -216,7 +207,7 @@ export const CreateMortgageResponse = MortgageSchema
 
 export const UpsertExtraPaymentRequest = z.object({
   mortgage_id: z.string(),
-  kind: z.enum(['extra_monthly', 'lump_sum']),
+  kind: z.enum(['extra_monthly', 'lump_sum', 'biweekly_conversion']),
   amount_cents: z.number(),
   applied_date: z.string(), // ISO
 })

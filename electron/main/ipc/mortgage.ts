@@ -1,4 +1,3 @@
-import { ipcMain } from 'electron'
 import { eq, desc, inArray } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { db } from '../db/client'
@@ -19,9 +18,10 @@ import {
   GetHomeValueHistoryRequest,
 } from '@shared/ipc/contracts'
 import { log } from '../logger'
+import { handle } from './handle'
 
 export function registerMortgageHandlers(): void {
-  ipcMain.handle('mortgages:list', async (_e, raw: unknown) => {
+  handle('mortgages:list', async (_e, raw) => {
     ListMortgagesRequest.parse(raw ?? {})
     const allMortgages = await db.select().from(mortgages)
     if (allMortgages.length === 0) return []
@@ -55,7 +55,7 @@ export function registerMortgageHandlers(): void {
     }))
   })
 
-  ipcMain.handle('mortgages:create', async (_e, raw: unknown) => {
+  handle('mortgages:create', async (_e, raw: unknown) => {
     const data = CreateMortgageRequest.parse(raw)
     const id = nanoid()
     await db.insert(mortgages).values({
@@ -73,7 +73,7 @@ export function registerMortgageHandlers(): void {
     return m
   })
 
-  ipcMain.handle('mortgages:upsertExtraPayment', async (_e, raw: unknown) => {
+  handle('mortgages:upsertExtraPayment', async (_e, raw: unknown) => {
     const data = UpsertExtraPaymentRequest.parse(raw)
     const id = nanoid()
     await db.insert(mortgage_extra_payments).values({
@@ -92,14 +92,14 @@ export function registerMortgageHandlers(): void {
     return ep
   })
 
-  ipcMain.handle('mortgages:deleteExtraPayment', async (_e, raw: unknown) => {
+  handle('mortgages:deleteExtraPayment', async (_e, raw: unknown) => {
     const { id } = DeleteExtraPaymentRequest.parse(raw)
     await db.delete(mortgage_extra_payments).where(eq(mortgage_extra_payments.id, id))
     return { deleted: true }
   })
 
   // properties
-  ipcMain.handle('properties:list', async (_e, raw: unknown) => {
+  handle('properties:list', async (_e, raw: unknown) => {
     ListPropertiesRequest.parse(raw ?? {})
     const allProps = await db.select().from(properties)
     if (allProps.length === 0) return []
@@ -127,7 +127,7 @@ export function registerMortgageHandlers(): void {
     })
   })
 
-  ipcMain.handle('properties:create', async (_e, raw: unknown) => {
+  handle('properties:create', async (_e, raw: unknown) => {
     const data = CreatePropertyRequest.parse(raw)
     const id = nanoid()
     const now = new Date()
@@ -149,7 +149,7 @@ export function registerMortgageHandlers(): void {
     return p
   })
 
-  ipcMain.handle('properties:addHomeValue', async (_e, raw: unknown) => {
+  handle('properties:addHomeValue', async (_e, raw: unknown) => {
     const data = AddHomeValueSnapshotRequest.parse(raw)
     const id = nanoid()
     await db.insert(home_value_snapshots).values({
@@ -169,7 +169,7 @@ export function registerMortgageHandlers(): void {
     return snap
   })
 
-  ipcMain.handle('properties:homeValueHistory', async (_e, raw: unknown) => {
+  handle('properties:homeValueHistory', async (_e, raw: unknown) => {
     const { property_id } = GetHomeValueHistoryRequest.parse(raw)
     return db
       .select()

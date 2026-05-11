@@ -1,4 +1,4 @@
-import { ipcMain, app, dialog } from 'electron'
+import { app, dialog } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
 import { db, sqlite } from '../db/client'
@@ -9,21 +9,19 @@ import {
   ImportDataRequest,
 } from '@shared/ipc/contracts'
 import { log } from '../logger'
+import { handle } from './handle'
 import type { AppStore } from '../store'
 
 const TABLE_COLUMNS: Record<string, ReadonlySet<string>> = {
   accounts: new Set(['id', 'name', 'kind', 'type', 'institution', 'currency', 'plaid_account_id', 'is_archived', 'created_at', 'updated_at']),
   balance_snapshots: new Set(['id', 'account_id', 'balance_cents', 'source', 'recorded_at']),
-  transactions: new Set(['id', 'account_id', 'posted_at', 'amount_cents', 'merchant', 'category', 'description', 'plaid_transaction_id', 'source']),
   mortgages: new Set(['id', 'account_id', 'property_id', 'original_principal_cents', 'interest_rate_bps', 'term_months', 'start_date', 'payment_day_of_month']),
   mortgage_extra_payments: new Set(['id', 'mortgage_id', 'amount_cents', 'applied_date', 'kind']),
   properties: new Set(['id', 'address', 'purchase_price_cents', 'purchase_date', 'beds', 'baths', 'sqft', 'year_built', 'zillow_zpid', 'created_at', 'updated_at']),
   home_value_snapshots: new Set(['id', 'property_id', 'value_cents', 'recorded_at', 'source', 'notes']),
-  monthly_expenses: new Set(['id', 'name', 'amount_cents', 'category', 'due_day', 'is_active']),
   devices: new Set(['id', 'name', 'kind', 'agent_token', 'last_seen_at', 'last_metrics_json', 'created_at']),
   sites: new Set(['id', 'name', 'url', 'check_interval_seconds', 'is_active', 'alert_on_down', 'alert_on_slow_ms', 'created_at']),
   site_checks: new Set(['id', 'site_id', 'checked_at', 'status_code', 'response_ms', 'ok', 'error_message']),
-  alerts: new Set(['id', 'target_kind', 'target_id', 'condition_json', 'last_triggered_at']),
 }
 
 let store: AppStore
@@ -33,7 +31,7 @@ export function initSettingsStore(s: AppStore): void {
 }
 
 export function registerSettingsHandlers(): void {
-  ipcMain.handle('settings:get', (_e, raw: unknown) => {
+  handle('settings:get', (_e, raw: unknown) => {
     GetSettingsRequest.parse(raw ?? {})
     return {
       theme: (store.get('theme') as 'dark' | 'light' | 'system' | undefined) ?? 'dark',
@@ -43,7 +41,7 @@ export function registerSettingsHandlers(): void {
     }
   })
 
-  ipcMain.handle('settings:update', (_e, raw: unknown) => {
+  handle('settings:update', (_e, raw: unknown) => {
     const data = UpdateSettingsRequest.parse(raw)
     if (data.theme) store.set('theme', data.theme)
     if (data.agent_server_port) store.set('agent_server_port', data.agent_server_port)
@@ -55,7 +53,7 @@ export function registerSettingsHandlers(): void {
     }
   })
 
-  ipcMain.handle('settings:export', async (_e, raw: unknown) => {
+  handle('settings:export', async (_e, raw: unknown) => {
     ExportDataRequest.parse(raw ?? {})
     const result = await dialog.showSaveDialog({
       defaultPath: `dashboard-export-${new Date().toISOString().slice(0, 10)}.json`,
@@ -68,16 +66,13 @@ export function registerSettingsHandlers(): void {
     const tables = [
       'accounts',
       'balance_snapshots',
-      'transactions',
       'mortgages',
       'mortgage_extra_payments',
       'properties',
       'home_value_snapshots',
-      'monthly_expenses',
       'devices',
       'sites',
       'site_checks',
-      'alerts',
     ]
     for (const table of tables) {
       exportData[table] = sqlite.prepare(`SELECT * FROM ${table}`).all()
@@ -88,7 +83,7 @@ export function registerSettingsHandlers(): void {
     return { path: result.filePath }
   })
 
-  ipcMain.handle('settings:import', async (_e, raw: unknown) => {
+  handle('settings:import', async (_e, raw: unknown) => {
     ImportDataRequest.parse(raw ?? {})
     const result = await dialog.showOpenDialog({
       filters: [{ name: 'JSON', extensions: ['json'] }],
@@ -105,8 +100,8 @@ export function registerSettingsHandlers(): void {
 
     // Delete children before parents, insert parents before children.
     const deleteOrder = [
-      'alerts', 'site_checks', 'home_value_snapshots', 'mortgage_extra_payments',
-      'transactions', 'balance_snapshots', 'monthly_expenses', 'devices',
+      'site_checks', 'home_value_snapshots', 'mortgage_extra_payments',
+      'balance_snapshots', 'devices',
       'sites', 'mortgages', 'properties', 'accounts',
     ]
     const insertOrder = [...deleteOrder].reverse()
@@ -139,7 +134,7 @@ export function registerSettingsHandlers(): void {
     }
   })
 
-  ipcMain.handle('settings:openDataFolder', async () => {
+  handle('settings:openDataFolder', async () => {
     const { shell } = await import('electron')
     const dataDir = path.join(app.getPath('userData'), 'data')
     await shell.openPath(dataDir)

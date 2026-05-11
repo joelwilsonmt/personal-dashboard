@@ -40,30 +40,6 @@ export const balance_snapshots = sqliteTable(
 )
 
 // ---------------------------------------------------------------------------
-// transactions
-// ---------------------------------------------------------------------------
-
-export const transactions = sqliteTable(
-  'transactions',
-  {
-    id: text('id').primaryKey(),
-    account_id: text('account_id')
-      .notNull()
-      .references(() => accounts.id),
-    posted_at: integer('posted_at', { mode: 'timestamp' }).notNull(),
-    amount_cents: integer('amount_cents').notNull(),
-    merchant: text('merchant').notNull().default(''),
-    category: text('category').notNull().default(''),
-    description: text('description').notNull().default(''),
-    plaid_transaction_id: text('plaid_transaction_id').unique(),
-    source: text('source', { enum: ['manual', 'plaid'] }).notNull().default('manual'),
-  },
-  (t) => [
-    index('transactions_account_posted').on(t.account_id, t.posted_at),
-  ],
-)
-
-// ---------------------------------------------------------------------------
 // mortgages
 // ---------------------------------------------------------------------------
 
@@ -132,19 +108,6 @@ export const home_value_snapshots = sqliteTable(
 )
 
 // ---------------------------------------------------------------------------
-// monthly_expenses
-// ---------------------------------------------------------------------------
-
-export const monthly_expenses = sqliteTable('monthly_expenses', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  amount_cents: integer('amount_cents').notNull(),
-  category: text('category').notNull().default(''),
-  due_day: integer('due_day').notNull().default(1),
-  is_active: integer('is_active', { mode: 'boolean' }).notNull().default(true),
-})
-
-// ---------------------------------------------------------------------------
 // devices
 // ---------------------------------------------------------------------------
 
@@ -193,14 +156,3 @@ export const site_checks = sqliteTable(
   ],
 )
 
-// ---------------------------------------------------------------------------
-// alerts
-// ---------------------------------------------------------------------------
-
-export const alerts = sqliteTable('alerts', {
-  id: text('id').primaryKey(),
-  target_kind: text('target_kind', { enum: ['site', 'device'] }).notNull(),
-  target_id: text('target_id').notNull(),
-  condition_json: text('condition_json').notNull(),
-  last_triggered_at: integer('last_triggered_at', { mode: 'timestamp' }),
-})

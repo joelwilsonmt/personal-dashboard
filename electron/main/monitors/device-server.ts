@@ -17,6 +17,9 @@ const AgentReportSchema = z.object({
   network: z.number().optional(),
 })
 
+const RATE_LIMIT_MS = 5_000
+const lastReportTime = new Map<string, number>()
+
 let server: http.Server | null = null
 
 function parseBody(req: http.IncomingMessage): Promise<unknown> {
@@ -66,6 +69,14 @@ export function startDeviceServer(port = 53117): void {
         sendJSON(res, 401, { error: 'Unauthorized' })
         return
       }
+
+      const now = Date.now()
+      const lastTime = lastReportTime.get(token)
+      if (lastTime !== undefined && now - lastTime < RATE_LIMIT_MS) {
+        sendJSON(res, 429, { error: 'Rate limit exceeded' })
+        return
+      }
+      lastReportTime.set(token, now)
 
       try {
         const body = await parseBody(req)

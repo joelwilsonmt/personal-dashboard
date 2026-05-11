@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { toast } from 'sonner'
 import { Plus, RefreshCw, Building2, TrendingUp, TrendingDown, Clock } from 'lucide-react'
 import { useAccounts, useCreateAccount, useUpdateAccount, useUpdateBalances, useNetWorthTrend, useAccountHistory } from '@/hooks/useAccounts'
@@ -359,18 +359,20 @@ function UpdateBalancesDialog({
 }) {
   const updateBalances = useUpdateBalances()
   const manualAccounts = accounts.filter((a) => !a.plaid_account_id)
-  const originalValues = Object.fromEntries(
-    manualAccounts.map((a) => [
-      a.id,
-      a.latest_balance_cents != null ? String(centsToDisplay(a.latest_balance_cents)) : '',
-    ]),
+  const originalValues = useRef(
+    Object.fromEntries(
+      manualAccounts.map((a) => [
+        a.id,
+        a.latest_balance_cents != null ? String(centsToDisplay(a.latest_balance_cents)) : '',
+      ]),
+    ),
   )
-  const [values, setValues] = useState<Record<string, string>>(originalValues)
+  const [values, setValues] = useState<Record<string, string>>(originalValues.current)
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const updates = manualAccounts
-      .filter((a) => values[a.id] !== '' && values[a.id] !== originalValues[a.id])
+      .filter((a) => values[a.id] !== '' && values[a.id] !== originalValues.current[a.id])
       .map((a) => ({
         account_id: a.id,
         balance_cents: displayToCents(parseFloat(values[a.id] ?? '0')),
