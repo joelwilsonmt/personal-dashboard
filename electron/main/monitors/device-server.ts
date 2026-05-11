@@ -63,7 +63,7 @@ export function startDeviceServer(port = 53117): void {
         .get()
 
       if (!device) {
-        sendJSON(res, 403, { error: 'Unknown token' })
+        sendJSON(res, 401, { error: 'Unauthorized' })
         return
       }
 

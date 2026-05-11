@@ -1,7 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
 function invoke<T>(channel: string, data?: unknown): Promise<T> {
-  return ipcRenderer.invoke(channel, data) as Promise<T>
+  return (ipcRenderer.invoke(channel, data) as Promise<T>).catch((err: unknown) => {
+    const msg = err instanceof Error ? err.message : String(err)
+    throw new Error(`IPC ${channel}: ${msg}`)
+  })
 }
 
 const api = {

@@ -220,7 +220,11 @@ function AddAccountDialog({ onClose }: { onClose: () => void }) {
               <Label>Kind</Label>
               <Select
                 value={form.kind}
-                onValueChange={(v) => setForm((f) => ({ ...f, kind: v as 'asset' | 'liability' }))}
+                onValueChange={(v) => {
+                  const kind = v as 'asset' | 'liability'
+                  const defaultType = kind === 'asset' ? 'checking' : 'credit_card'
+                  setForm((f) => ({ ...f, kind, type: defaultType }))
+                }}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -241,13 +245,21 @@ function AddAccountDialog({ onClose }: { onClose: () => void }) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="checking">Checking</SelectItem>
-                  <SelectItem value="savings">Savings</SelectItem>
-                  <SelectItem value="brokerage">Brokerage</SelectItem>
-                  <SelectItem value="retirement">Retirement</SelectItem>
-                  <SelectItem value="credit_card">Credit Card</SelectItem>
-                  <SelectItem value="mortgage">Mortgage</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
+                  {form.kind === 'asset' ? (
+                    <>
+                      <SelectItem value="checking">Checking</SelectItem>
+                      <SelectItem value="savings">Savings</SelectItem>
+                      <SelectItem value="brokerage">Brokerage</SelectItem>
+                      <SelectItem value="retirement">Retirement</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </>
+                  ) : (
+                    <>
+                      <SelectItem value="credit_card">Credit Card</SelectItem>
+                      <SelectItem value="mortgage">Mortgage</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </>
+                  )}
                 </SelectContent>
               </Select>
             </div>

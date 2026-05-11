@@ -1,4 +1,5 @@
 import { useId } from 'react'
+import { useTheme } from 'next-themes'
 import {
   AreaChart,
   Area,
@@ -21,6 +22,13 @@ type Props = {
 
 export function AmortizationChart({ schedule, currentMonth, height = 300 }: Props) {
   const id = useId()
+  const { resolvedTheme } = useTheme()
+  const dark = resolvedTheme !== 'light'
+  const mutedFg = dark ? 'oklch(0.708 0 0)' : 'oklch(0.556 0 0)'
+  const gridStroke = dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'
+  const tooltipBg = dark ? 'oklch(0.205 0 0)' : 'oklch(0.985 0 0)'
+  const tooltipBorder = dark ? 'oklch(0.3 0 0)' : 'oklch(0.922 0 0)'
+
   const chartData = schedule.map((r) => ({
     month: r.month,
     Interest: r.interest,
@@ -40,26 +48,26 @@ export function AmortizationChart({ schedule, currentMonth, height = 300 }: Prop
             <stop offset="95%" stopColor="#4ade80" stopOpacity={0.05} />
           </linearGradient>
         </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+        <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
         <XAxis
           dataKey="month"
           tickFormatter={(v: number) => `Yr ${Math.ceil(v / 12)}`}
-          tick={{ fontSize: 11, fill: 'oklch(0.708 0 0)' }}
+          tick={{ fontSize: 11, fill: mutedFg }}
           axisLine={false}
           tickLine={false}
           interval={Math.floor(schedule.length / 6)}
         />
         <YAxis
           tickFormatter={(v: number) => formatCurrency(v, 'USD', { compact: true })}
-          tick={{ fontSize: 11, fill: 'oklch(0.708 0 0)' }}
+          tick={{ fontSize: 11, fill: mutedFg }}
           axisLine={false}
           tickLine={false}
           width={70}
         />
         <Tooltip
           contentStyle={{
-            backgroundColor: 'oklch(0.205 0 0)',
-            border: '1px solid oklch(0.3 0 0)',
+            backgroundColor: tooltipBg,
+            border: `1px solid ${tooltipBorder}`,
             borderRadius: '6px',
             fontSize: '12px',
           }}
@@ -76,9 +84,9 @@ export function AmortizationChart({ schedule, currentMonth, height = 300 }: Prop
         />
         <ReferenceLine
           x={currentMonth}
-          stroke="oklch(0.708 0 0)"
+          stroke={mutedFg}
           strokeDasharray="4 4"
-          label={{ value: 'Today', position: 'top', fontSize: 11, fill: 'oklch(0.708 0 0)' }}
+          label={{ value: 'Today', position: 'top', fontSize: 11, fill: mutedFg }}
         />
         <Area
           type="monotone"

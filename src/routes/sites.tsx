@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState, useId } from 'react'
+import { useTheme } from 'next-themes'
 import { toast } from 'sonner'
 import { Globe, Plus, Pause, Play, Pencil, Trash2, Clock, BarChart3 } from 'lucide-react'
 import {
@@ -222,6 +223,13 @@ function SiteFormDialog({
 
 function SiteChecksChart({ checks }: { checks: SiteCheck[] }) {
   const id = useId()
+  const { resolvedTheme } = useTheme()
+  const dark = resolvedTheme !== 'light'
+  const mutedFg = dark ? 'oklch(0.708 0 0)' : 'oklch(0.556 0 0)'
+  const gridStroke = dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'
+  const tooltipBg = dark ? 'oklch(0.205 0 0)' : 'oklch(0.985 0 0)'
+  const tooltipBorder = dark ? 'oklch(0.3 0 0)' : 'oklch(0.922 0 0)'
+
   const data = [...checks]
     .reverse()
     .slice(-100)
@@ -234,28 +242,28 @@ function SiteChecksChart({ checks }: { checks: SiteCheck[] }) {
   return (
     <ResponsiveContainer width="100%" height={120}>
       <AreaChart data={data} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+        <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
         <XAxis
           dataKey="time"
           tickFormatter={(v: number) => {
             const d = new Date(v)
             return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`
           }}
-          tick={{ fontSize: 10, fill: 'oklch(0.708 0 0)' }}
+          tick={{ fontSize: 10, fill: mutedFg }}
           axisLine={false}
           tickLine={false}
         />
         <YAxis
           tickFormatter={(v: number) => `${v}ms`}
-          tick={{ fontSize: 10, fill: 'oklch(0.708 0 0)' }}
+          tick={{ fontSize: 10, fill: mutedFg }}
           axisLine={false}
           tickLine={false}
           width={50}
         />
         <Tooltip
           contentStyle={{
-            backgroundColor: 'oklch(0.205 0 0)',
-            border: '1px solid oklch(0.3 0 0)',
+            backgroundColor: tooltipBg,
+            border: `1px solid ${tooltipBorder}`,
             borderRadius: '6px',
             fontSize: '12px',
           }}

@@ -28,14 +28,18 @@ async function checkSite(
       redirect: 'follow',
     })
     if (res.status === 405) {
-      res = await fetch(site.url, { method: 'GET', signal: controller.signal, redirect: 'follow' })
+      clearTimeout(timer)
+      const getController = new AbortController()
+      const getTimer = setTimeout(() => getController.abort(), TIMEOUT_MS)
+      res = await fetch(site.url, { method: 'GET', signal: getController.signal, redirect: 'follow' })
+      clearTimeout(getTimer)
+    } else {
+      clearTimeout(timer)
     }
-    clearTimeout(timer)
     const ms = Date.now() - start
     const ok = res.status < 400
     return { ok, status_code: res.status, response_ms: ms, error: null }
   } catch (err) {
-    clearTimeout(timer)
     return {
       ok: false,
       status_code: null,

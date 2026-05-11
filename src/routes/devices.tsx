@@ -97,8 +97,11 @@ function DeviceCard({ device, onClick, onDelete }: {
 
   return (
     <Card
-      className="cursor-pointer hover:border-border/80 transition-colors"
+      className="cursor-pointer hover:border-border/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } }}
     >
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">

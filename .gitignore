@@ -36,5 +36,8 @@ logs/
 # Test coverage
 coverage/
 
+# Planning artifacts
+dashboard-prompt.md
+
 # TypeScript incremental build
 *.tsbuildinfo

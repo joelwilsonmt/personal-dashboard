@@ -43,4 +43,8 @@ $headers = @{
     "X-Agent-Token" = $AgentToken
 }
 
-Invoke-RestMethod -Method POST -Uri "$DashboardHost/agent/report" -Headers $headers -Body $payload -ErrorAction SilentlyContinue | Out-Null
+try {
+    Invoke-RestMethod -Method POST -Uri "$DashboardHost/agent/report" -Headers $headers -Body $payload -ErrorAction Stop | Out-Null
+} catch {
+    Write-Warning "agent: request failed: $_"
+}

@@ -49,4 +49,4 @@ curl -s -X POST "$DASHBOARD_HOST/agent/report" \
   -H "Content-Type: application/json" \
   -H "X-Agent-Token: $AGENT_TOKEN" \
   -d "$payload" \
-  > /dev/null
+  > /dev/null || echo "agent: curl failed (exit $?)" >&2

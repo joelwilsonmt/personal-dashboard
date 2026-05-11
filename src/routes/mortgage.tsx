@@ -302,12 +302,9 @@ function MortgageDetail({ mortgage, currentBalance }: {
 }) {
   const ratePct = bpsToPercent(mortgage.interest_rate_bps)
   const balance = currentBalance ?? mortgage.original_principal_cents
-  const paidOff = Math.max(
-    0,
-    Math.round(
-      ((mortgage.original_principal_cents - balance) / mortgage.original_principal_cents) * 100,
-    ),
-  )
+  const paidOff = mortgage.original_principal_cents > 0
+    ? Math.max(0, Math.round(((mortgage.original_principal_cents - balance) / mortgage.original_principal_cents) * 100))
+    : 0
   const payment = monthlyPayment(mortgage.original_principal_cents, ratePct, mortgage.term_months)
 
   const baseSchedule = useMemo(
