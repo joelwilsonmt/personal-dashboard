@@ -35,6 +35,9 @@ export function Sidebar() {
           collapsed ? 'w-14' : 'w-56',
         )}
       >
+        {/* macOS traffic light spacer — hiddenInset overlays ~28px at top-left */}
+        <div className="h-7 shrink-0 [-webkit-app-region:drag]" />
+
         {/* Logo / app name */}
         <div className="flex h-14 items-center gap-2 px-3 border-b border-border shrink-0">
           <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground text-sm font-bold shrink-0">
