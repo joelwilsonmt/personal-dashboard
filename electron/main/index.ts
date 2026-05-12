@@ -14,6 +14,10 @@ import { startDeviceServer, stopDeviceServer } from './monitors/device-server'
 
 const store = createAppStore()
 
+const resourcesDir = path.join(__dirname, '../../resources')
+const iconIcns = path.join(resourcesDir, 'icon.icns')
+const iconPng  = path.join(resourcesDir, 'icon.png')
+
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1280,
@@ -24,6 +28,7 @@ function createWindow(): BrowserWindow {
     autoHideMenuBar: true,
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     backgroundColor: '#0f172a',
+    icon: process.platform === 'darwin' ? iconIcns : iconPng,
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -52,6 +57,7 @@ function createWindow(): BrowserWindow {
 
 app.whenReady().then(async () => {
   electronApp.setAppUserModelId('com.dashboard.personal')
+  if (process.platform === 'darwin') app.dock.setIcon(iconPng)
 
   app.on('browser-window-created', (_, win) => {
     optimizer.watchWindowShortcuts(win)
