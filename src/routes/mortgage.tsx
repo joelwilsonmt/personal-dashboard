@@ -263,6 +263,7 @@ function PayoffScenarios({ mortgage }: { mortgage: MortgageWithDetails }) {
   const [extraMonthly, setExtraMonthly] = useState(0)
   const [lumpSum, setLumpSum] = useState(0)
   const [biweekly, setBiweekly] = useState(false)
+  const [appliedDate, setAppliedDate] = useState(new Date().toISOString().slice(0, 10))
   const saveRecurring = useSaveRecurring()
 
   const ratePct = bpsToPercent(mortgage.interest_rate_bps)
@@ -393,7 +394,18 @@ function PayoffScenarios({ mortgage }: { mortgage: MortgageWithDetails }) {
           </div>
         )}
         {(extraMonthly > 0 || biweekly) && (
-          <div className="flex justify-end">
+          <div className="flex items-center gap-3 justify-end">
+            <div className="flex items-center gap-2">
+              <Label className="text-xs text-muted-foreground whitespace-nowrap">Started</Label>
+              <Input
+                type="date"
+                value={appliedDate}
+                min={new Date(mortgage.start_date).toISOString().slice(0, 10)}
+                max={new Date().toISOString().slice(0, 10)}
+                onChange={(e) => setAppliedDate(e.target.value)}
+                className="h-8 w-36 text-xs"
+              />
+            </div>
             <Button
               size="sm"
               variant="outline"
@@ -405,7 +417,7 @@ function PayoffScenarios({ mortgage }: { mortgage: MortgageWithDetails }) {
                     mortgage_id: mortgage.id,
                     extra_monthly_cents: Math.round(extraMonthly * 100),
                     biweekly,
-                    applied_date: new Date().toISOString().slice(0, 10),
+                    applied_date: appliedDate,
                   },
                   {
                     onSuccess: () => toast.success('Recurring payments saved'),
@@ -531,7 +543,7 @@ function MortgageDetail({ mortgage, currentBalance, homeValue }: {
           <CardTitle className="text-sm font-medium">Amortization</CardTitle>
         </CardHeader>
         <CardContent>
-          <AmortizationChart schedule={baseSchedule} currentMonth={currentMonth} height={260} />
+          <AmortizationChart schedule={scheduleWithExtras} currentMonth={currentMonth} height={260} />
         </CardContent>
       </Card>
 
