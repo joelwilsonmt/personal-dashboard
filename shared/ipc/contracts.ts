@@ -228,6 +228,9 @@ export const UpsertExtraPaymentResponse = ExtraPaymentSchema
 export const DeleteExtraPaymentRequest = z.object({ id: z.string() })
 export const DeleteExtraPaymentResponse = z.object({ deleted: z.boolean() })
 
+export const DeleteMortgageRequest = z.object({ id: z.string() })
+export const DeleteMortgageResponse = z.object({ deleted: z.boolean() })
+
 // properties
 export const ListPropertiesRequest = z.object({})
 export const ListPropertiesResponse = z.array(

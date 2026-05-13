@@ -9,6 +9,7 @@ import type {
   CreateMortgageRequest,
   UpsertExtraPaymentRequest,
   DeleteExtraPaymentRequest,
+  DeleteMortgageRequest,
   SaveRecurringPaymentsRequest,
   CreatePropertyRequest,
   AddHomeValueSnapshotRequest,
@@ -56,6 +57,7 @@ const api = {
   mortgages: {
     list: () => invoke('mortgages:list', {}),
     create: (req: In<typeof CreateMortgageRequest>) => invoke('mortgages:create', req),
+    delete: (req: In<typeof DeleteMortgageRequest>) => invoke('mortgages:delete', req),
     upsertExtraPayment: (req: In<typeof UpsertExtraPaymentRequest>) =>
       invoke('mortgages:upsertExtraPayment', req),
     deleteExtraPayment: (req: In<typeof DeleteExtraPaymentRequest>) =>

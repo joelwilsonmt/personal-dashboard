@@ -1,8 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState, useMemo, useEffect } from 'react'
 import { toast } from 'sonner'
-import { Home, Plus, TrendingUp, Save } from 'lucide-react'
-import { useMortgages, useProperties, useCreateMortgage, useCreateProperty, useAddHomeValue, useSaveRecurring } from '@/hooks/useMortgage'
+import { Home, Plus, TrendingUp, Save, Trash2 } from 'lucide-react'
+import { useMortgages, useProperties, useCreateMortgage, useCreateProperty, useAddHomeValue, useSaveRecurring, useDeleteMortgage } from '@/hooks/useMortgage'
 import { useAccounts, useCreateAccount } from '@/hooks/useAccounts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -10,6 +10,7 @@ import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -755,12 +756,14 @@ function MortgagePage() {
   const mortgagesQ = useMortgages()
   const propertiesQ = useProperties()
   const accountsQ = useAccounts()
+  const deleteMortgage = useDeleteMortgage()
 
   const mortgages = mortgagesQ.data ?? []
   const properties = propertiesQ.data ?? []
   const accounts = accountsQ.data ?? []
 
   const [selectedMortgageId, setSelectedMortgageId] = useState<string | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const mortgage = selectedMortgageId
     ? (mortgages.find((m) => m.id === selectedMortgageId) ?? mortgages[0] ?? null)
     : (mortgages[0] ?? null)
@@ -817,7 +820,20 @@ function MortgagePage() {
             </div>
           )}
         </div>
-        <TrendingUp size={20} className="text-muted-foreground" />
+        <div className="flex items-center gap-2">
+          {mortgage && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="gap-1.5 text-muted-foreground hover:text-destructive"
+              onClick={() => setConfirmDelete(true)}
+            >
+              <Trash2 size={14} />
+              Delete mortgage
+            </Button>
+          )}
+          <TrendingUp size={20} className="text-muted-foreground" />
+        </div>
       </div>
 
       {mortgages.length === 0 ? (
@@ -837,6 +853,36 @@ function MortgagePage() {
             />
           )}
         </>
+      )}
+
+      {confirmDelete && mortgage && (
+        <AlertDialog open onOpenChange={(open) => !open && setConfirmDelete(false)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete this mortgage?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This removes the mortgage and all extra payment history. The linked account in Net Worth won't be affected. This can't be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() =>
+                  deleteMortgage.mutate(mortgage.id, {
+                    onSuccess: () => {
+                      toast.success('Mortgage deleted')
+                      setConfirmDelete(false)
+                      setSelectedMortgageId(null)
+                    },
+                    onError: (err) => toast.error(err.message),
+                  })
+                }
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       )}
     </div>
   )

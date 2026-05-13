@@ -12,6 +12,7 @@ import {
   CreateMortgageRequest,
   UpsertExtraPaymentRequest,
   DeleteExtraPaymentRequest,
+  DeleteMortgageRequest,
   ListPropertiesRequest,
   CreatePropertyRequest,
   AddHomeValueSnapshotRequest,
@@ -97,6 +98,13 @@ export function registerMortgageHandlers(): void {
   handle('mortgages:deleteExtraPayment', async (_e, raw: unknown) => {
     const { id } = DeleteExtraPaymentRequest.parse(raw)
     await db.delete(mortgage_extra_payments).where(eq(mortgage_extra_payments.id, id))
+    return { deleted: true }
+  })
+
+  handle('mortgages:delete', async (_e, raw: unknown) => {
+    const { id } = DeleteMortgageRequest.parse(raw)
+    await db.delete(mortgage_extra_payments).where(eq(mortgage_extra_payments.mortgage_id, id))
+    await db.delete(mortgages).where(eq(mortgages.id, id))
     return { deleted: true }
   })
 

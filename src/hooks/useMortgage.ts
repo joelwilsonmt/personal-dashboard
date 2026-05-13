@@ -66,6 +66,14 @@ export function useUpsertExtraPayment() {
   })
 }
 
+export function useDeleteMortgage() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => window.api.mortgages.delete({ id }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: mortgageKeys.all }),
+  })
+}
+
 export function useSaveRecurring() {
   const qc = useQueryClient()
   return useMutation({
