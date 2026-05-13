@@ -491,19 +491,20 @@ function MortgageDetail({ mortgage, currentBalance, homeValue }: {
     ),
   )
 
-  const interestYTD = useMemo(() => {
-    const currentYear = new Date().getFullYear()
-    const startYear = new Date(mortgage.start_date).getFullYear()
-    const ytdStart = Math.max(0, (currentYear - startYear) * 12)
-    return scheduleWithExtras.slice(ytdStart, currentMonth).reduce((s, r) => s + r.interest, 0)
-  }, [scheduleWithExtras, currentMonth, mortgage.start_date])
+  const ytdStartIndex = useMemo(() => {
+    const jan1 = new Date(new Date().getFullYear(), 0, 1)
+    return Math.max(0, differenceInMonths(jan1, new Date(mortgage.start_date)))
+  }, [mortgage.start_date])
 
-  const principalYTD = useMemo(() => {
-    const currentYear = new Date().getFullYear()
-    const startYear = new Date(mortgage.start_date).getFullYear()
-    const ytdStart = Math.max(0, (currentYear - startYear) * 12)
-    return scheduleWithExtras.slice(ytdStart, currentMonth).reduce((s, r) => s + r.principal, 0)
-  }, [scheduleWithExtras, currentMonth, mortgage.start_date])
+  const interestYTD = useMemo(() =>
+    scheduleWithExtras.slice(ytdStartIndex, currentMonth).reduce((s, r) => s + r.interest, 0),
+    [scheduleWithExtras, ytdStartIndex, currentMonth],
+  )
+
+  const principalYTD = useMemo(() =>
+    scheduleWithExtras.slice(ytdStartIndex, currentMonth).reduce((s, r) => s + r.principal, 0),
+    [scheduleWithExtras, ytdStartIndex, currentMonth],
+  )
 
   return (
     <div className="space-y-4">
