@@ -6,6 +6,7 @@ import {
   mortgage_extra_payments,
   properties,
   home_value_snapshots,
+  accounts,
 } from '@shared/db/schema'
 import {
   ListMortgagesRequest,
@@ -103,8 +104,14 @@ export function registerMortgageHandlers(): void {
 
   handle('mortgages:delete', async (_e, raw: unknown) => {
     const { id } = DeleteMortgageRequest.parse(raw)
+    const mortgage = await db.select().from(mortgages).where(eq(mortgages.id, id)).get()
     await db.delete(mortgage_extra_payments).where(eq(mortgage_extra_payments.mortgage_id, id))
     await db.delete(mortgages).where(eq(mortgages.id, id))
+    if (mortgage?.account_id) {
+      await db.update(accounts)
+        .set({ is_archived: true, updated_at: new Date() })
+        .where(eq(accounts.id, mortgage.account_id))
+    }
     return { deleted: true }
   })
 
